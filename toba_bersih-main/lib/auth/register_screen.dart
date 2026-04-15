@@ -33,7 +33,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      var url = Uri.parse('http://10.0.2.2:5000/api/auth/register');
+      var url = Uri.parse('http://10.225.176.144:5000/api/auth/register');
       var response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -43,6 +43,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
           'password': password,
         }),
       );
+
+      print(response.statusCode);
+      print(response.body);
 
       var data = jsonDecode(response.body);
 
