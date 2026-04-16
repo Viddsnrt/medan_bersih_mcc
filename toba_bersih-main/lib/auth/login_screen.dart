@@ -4,8 +4,7 @@ import 'package:toba_bersih/features/operator/operator_home.dart';
 import 'dart:convert';
 
 // Sesuaikan dengan struktur folder proyekmu
-import 'package:toba_bersih/main.dart';
-import 'package:toba_bersih/features/operator/operator_home.dart';
+import 'package:toba_bersih/main.dart'; 
 import 'package:toba_bersih/auth/register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -17,24 +16,18 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
 
-  final TextEditingController _emailController =
-      TextEditingController();
-
-  final TextEditingController _passwordController =
-      TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   bool _isLoading = false;
 
   Future<void> _login() async {
-
     setState(() {
       _isLoading = true;
     });
 
     try {
-
-      var url = Uri.parse(
-          'http://10.225.176.144:5000/api/auth/login');
+      var url = Uri.parse('http://10.61.166.195:5000/api/auth/login');
 
       var response = await http.post(
         url,
@@ -42,10 +35,8 @@ class _LoginScreenState extends State<LoginScreen> {
           'Content-Type': 'application/json'
         },
         body: jsonEncode({
-          'email':
-              _emailController.text.trim(),
-          'password':
-              _passwordController.text.trim(),
+          'email': _emailController.text.trim(),
+          'password': _passwordController.text.trim(),
         }),
       );
 
@@ -54,152 +45,120 @@ class _LoginScreenState extends State<LoginScreen> {
 
       var data = jsonDecode(response.body);
 
-      if (response.statusCode == 200 &&
-          data['success'] == true) {
+      if (response.statusCode == 200 && data['success'] == true) {
+        
+        // Mengambil Role
+        String role = "";
+        if (data['data'] != null && data['data']['role'] != null) {
+          role = data['data']['role'].toString().toUpperCase();
+        } else if (data['user'] != null && data['user']['role'] != null) {
+          role = data['user']['role'].toString().toUpperCase();
+        } else if (data['role'] != null) {
+          role = data['role'].toString().toUpperCase();
+        }
 
-        String role =
-            data['user']?['role'] ?? "";
+        // 🔥 PERBAIKAN PENTING: Mengambil ID User (Supir) dari JSON
+        String userId = "";
+        if (data['data'] != null && data['data']['id'] != null) {
+          userId = data['data']['id'].toString();
+        } else if (data['user'] != null && data['user']['id'] != null) {
+          userId = data['user']['id'].toString();
+        } else if (data['id'] != null) {
+          userId = data['id'].toString();
+        }
+
+        print("Role yang terdeteksi: $role | ID User: $userId");
 
         if (mounted) {
-
-          if (role == 'WARGA') {
-
-            ScaffoldMessenger.of(context)
-                .showSnackBar(
+          if (role == 'WARGA' || role == 'MASYARAKAT') {
+            ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text(
-                    'Login sukses sebagai Masyarakat'),
+                content: Text('Login sukses sebagai Masyarakat'),
                 backgroundColor: Colors.green,
               ),
             );
 
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(
-                builder: (context) =>
-                    const MainScreen(),
-              ),
+              MaterialPageRoute(builder: (context) => const MainScreen()),
             );
 
-          } else if (role == 'OPERATOR') {
-
-            ScaffoldMessenger.of(context)
-                .showSnackBar(
+          } else if (role == 'OPERATOR' || role == 'SUPIR') { // 🔥 TAMBAHKAN "SUPIR" DI SINI
+            ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content:
-                    Text('Login sukses sebagai Supir'),
+                content: Text('Login sukses sebagai Supir'),
                 backgroundColor: Colors.green,
               ),
             );
 
+            // Melempar userId ke OperatorHomeScreen
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(
-                builder: (context) =>
-                    const OperatorHomeScreen(),
-              ),
+              MaterialPageRoute(builder: (context) => OperatorHomeScreen(driverId: userId)),
             );
 
           } else {
-
-            ScaffoldMessenger.of(context)
-                .showSnackBar(
-              const SnackBar(
-                content:
-                    Text('Role tidak dikenali'),
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Role tidak dikenali: "$role". Hubungi Admin!'),
                 backgroundColor: Colors.red,
               ),
             );
-
           }
-
         }
 
       } else {
-
         if (mounted) {
-
-          ScaffoldMessenger.of(context)
-              .showSnackBar(
+          ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                data['message'] ??
-                    'Login Gagal',
+                data['message'] ?? 'Login Gagal',
               ),
               backgroundColor: Colors.red,
             ),
           );
-
         }
-
       }
-
     } catch (e) {
-
       if (mounted) {
-
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Terjadi kesalahan jaringan: $e',
-            ),
+            content: Text('Terjadi kesalahan jaringan: $e'),
             backgroundColor: Colors.red,
           ),
         );
-
       }
-
     } finally {
-
       if (mounted) {
-
         setState(() {
           _isLoading = false;
         });
-
       }
-
     }
-
   }
 
   @override
   void dispose() {
-
     _emailController.dispose();
     _passwordController.dispose();
-
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
-
       body: Center(
-
         child: SingleChildScrollView(
-
-          padding:
-              const EdgeInsets.all(30.0),
-
+          padding: const EdgeInsets.all(30.0),
           child: Column(
-
-            mainAxisAlignment:
-                MainAxisAlignment.center,
-
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-
               const Icon(
                 Icons.eco,
                 size: 80,
                 color: Colors.green,
               ),
-
               const SizedBox(height: 20),
-
               const Text(
                 'Selamat Datang',
                 style: TextStyle(
@@ -207,89 +166,56 @@ class _LoginScreenState extends State<LoginScreen> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-
               const SizedBox(height: 10),
-
               const Text(
                 'Silakan masuk untuk melanjutkan',
                 textAlign: TextAlign.center,
-                style:
-                    TextStyle(color: Colors.grey),
+                style: TextStyle(color: Colors.grey),
               ),
-
               const SizedBox(height: 40),
 
               // EMAIL
               TextField(
-                controller:
-                    _emailController,
-                keyboardType:
-                    TextInputType.emailAddress,
-                decoration:
-                    InputDecoration(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
                   labelText: 'Email',
-                  border:
-                      OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(
-                            10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  prefixIcon:
-                      const Icon(Icons.email),
+                  prefixIcon: const Icon(Icons.email),
                 ),
               ),
-
               const SizedBox(height: 20),
 
               // PASSWORD
               TextField(
-                controller:
-                    _passwordController,
+                controller: _passwordController,
                 obscureText: true,
-                decoration:
-                    InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Password',
-                  border:
-                      OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(
-                            10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  prefixIcon:
-                      const Icon(Icons.lock),
+                  prefixIcon: const Icon(Icons.lock),
                 ),
               ),
-
               const SizedBox(height: 40),
 
               // BUTTON LOGIN
               SizedBox(
                 width: double.infinity,
                 height: 50,
-
                 child: ElevatedButton(
-
-                  style:
-                      ElevatedButton.styleFrom(
-                    backgroundColor:
-                        Colors.green,
-                    shape:
-                        RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(
-                              10),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-
-                  onPressed:
-                      _isLoading
-                          ? null
-                          : _login,
-
+                  onPressed: _isLoading ? null : _login,
                   child: _isLoading
-                      ? const CircularProgressIndicator(
-                          color:
-                              Colors.white)
+                      ? const CircularProgressIndicator(color: Colors.white)
                       : const Text(
                           'Masuk Aplikasi',
                           style: TextStyle(
@@ -299,56 +225,36 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                 ),
               ),
-
               const SizedBox(height: 20),
 
               // REGISTER BUTTON
               Row(
-                mainAxisAlignment:
-                    MainAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-
-                  const Text(
-                      'Belum punya akun?'),
-
+                  const Text('Belum punya akun?'),
                   TextButton(
-
                     onPressed: () {
-
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) =>
-                              const RegisterScreen(),
+                          builder: (context) => const RegisterScreen(),
                         ),
                       );
-
                     },
-
                     child: const Text(
                       'Daftar di sini',
                       style: TextStyle(
                         color: Colors.green,
-                        fontWeight:
-                            FontWeight.bold,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-
                   ),
-
                 ],
               ),
-
             ],
-
           ),
-
         ),
-
       ),
-
     );
-
   }
-
 }

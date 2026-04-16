@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
 // Sesuaikan nama 'toba_bersih' dengan nama project di pubspec.yaml kamu
 import 'package:toba_bersih/features/report/report_screen.dart';
 import 'package:toba_bersih/features/history/history_screen.dart';
 import 'package:toba_bersih/features/profile/profile_screen.dart';
-import 'package:toba_bersih/features/onboarding/splash_screen.dart'; // TAMBAHAN: Import Splash Screen
+import 'package:toba_bersih/features/onboarding/splash_screen.dart'; 
 
 void main() {
   runApp(const TobaBersihApp());
@@ -17,9 +20,10 @@ class TobaBersihApp extends StatelessWidget {
     return MaterialApp(
       title: 'Toba Bersih',
       debugShowCheckedModeBanner: false,  
+      // 🔥 KEMBALI 100% KE TEMA ASLIMU
       theme: ThemeData(
         primarySwatch: Colors.green,
-        scaffoldBackgroundColor: Colors.grey[100],
+        scaffoldBackgroundColor: Colors.grey,
       ),
       home: const SplashScreen(), 
     );
@@ -27,7 +31,7 @@ class TobaBersihApp extends StatelessWidget {
 }
 
 // ==========================================
-// 1. MAIN SCREEN (NAVIGASI 4 TAB BARU)
+// 1. MAIN SCREEN (NAVIGASI 4 TAB)
 // ==========================================
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -39,10 +43,9 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
-  // Daftar 4 halaman sesuai urutan Navigation Bar
   final List<Widget> _pages = [
     const DashboardScreen(),
-    const ReportScreen(), // Halaman Form Laporan Kamera
+    const ReportScreen(), 
     const HistoryScreen(),
     const ProfileScreen(),
   ];
@@ -54,7 +57,6 @@ class _MainScreenState extends State<MainScreen> {
         index: _currentIndex,
         children: _pages,
       ),
-      // Menggunakan BottomNavigationBar standar untuk 4 item
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) {
@@ -62,10 +64,10 @@ class _MainScreenState extends State<MainScreen> {
             _currentIndex = index;
           });
         },
-        type: BottomNavigationBarType.fixed, // Penting agar teks tidak hilang saat item > 3
+        type: BottomNavigationBarType.fixed, 
         backgroundColor: Colors.white,
-        selectedItemColor: Colors.green[700],
-        unselectedItemColor: Colors.grey[400],
+        selectedItemColor: Colors.green,
+        unselectedItemColor: Colors.grey,
         selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
         unselectedLabelStyle: const TextStyle(fontSize: 12),
         items: const [
@@ -96,18 +98,62 @@ class _MainScreenState extends State<MainScreen> {
 }
 
 // ==========================================
-// 2. DASHBOARD SCREEN (DENGAN TRACKING TRUK)
+// 2. DASHBOARD SCREEN (DENGAN DATA ASLI SERVER)
 // ==========================================
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  List<dynamic> _reports = [];
+
+  // Variabel untuk menyimpan angka statistik asli
+  int _totalLaporan = 0;
+  int _laporanDiproses = 0;
+  int _laporanSelesai = 0;
+
+  final String ipAddress = '10.61.166.195'; // IP Laptop kamu
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchDashboardData();
+  }
+
+  // --- FUNGSI MENGAMBIL DATA DARI SERVER ---
+  Future<void> _fetchDashboardData() async {
+    try {
+      final response = await http.get(Uri.parse('http://$ipAddress:5000/api/laporan/user/2'));
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List<dynamic> reportsData = data['data'];
+
+        // Perbarui state secara halus tanpa memicu loading screen penuh
+        if (mounted) {
+          setState(() {
+            _reports = reportsData;
+            _totalLaporan = reportsData.length;
+            _laporanDiproses = reportsData.where((r) => r['status'] == 'DIPROSES').length;
+            _laporanSelesai = reportsData.where((r) => r['status'] == 'SELESAI').length;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Error fetching dashboard data: $e");
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: Colors.grey,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.green[700],
+        backgroundColor: Colors.green,
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -128,6 +174,7 @@ class DashboardScreen extends StatelessWidget {
           ),
         ],
       ),
+      // 🔥 STRUKTUR UI DIKEMBALIKAN PERSIS 100% SEPERTI KODE ASLIMU
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.all(16.0),
@@ -137,7 +184,6 @@ class DashboardScreen extends StatelessWidget {
             _buildInfoBanner(),
             const SizedBox(height: 24),
             
-            // --- FITUR BARU: JADWAL & LACAK TRUK SAMPAH ---
             const Text(
               'Pengangkutan Hari Ini',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -174,7 +220,6 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  // --- WIDGET BARU: KARTU TRACKING ---
   Widget _buildTrackingSection() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -198,7 +243,7 @@ class DashboardScreen extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(Icons.local_shipping, color: Colors.green[700]),
+                  Icon(Icons.local_shipping, color: Colors.green),
                   const SizedBox(width: 8),
                   const Text('Jadwal Area Rumahmu', 
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)
@@ -208,11 +253,11 @@ class DashboardScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.green[50], 
+                  color: Colors.green, 
                   borderRadius: BorderRadius.circular(12)
                 ),
                 child: Text('Aktif', 
-                  style: TextStyle(color: Colors.green[700], fontSize: 12, fontWeight: FontWeight.bold)
+                  style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold)
                 ),
               )
             ],
@@ -225,15 +270,15 @@ class DashboardScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Truk DLH #02 - Rute Balige', 
-                      style: TextStyle(color: Colors.grey[800], fontWeight: FontWeight.w600, fontSize: 13)
+                      style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600, fontSize: 13)
                     ),
                     const SizedBox(height: 4),
                     Text('Estimasi Tiba: 15:30 - 16:00 WIB', 
-                      style: TextStyle(color: Colors.grey[600], fontSize: 12)
+                      style: TextStyle(color: Colors.grey, fontSize: 12)
                     ),
                     const SizedBox(height: 4),
                     Text('Status: Sedang di Jl. Sisingamangaraja', 
-                      style: TextStyle(color: Colors.orange[700], fontSize: 12, fontWeight: FontWeight.w500)
+                      style: TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.w500)
                     ),
                   ],
                 ),
@@ -245,7 +290,7 @@ class DashboardScreen extends StatelessWidget {
                 icon: const Icon(Icons.map, size: 16),
                 label: const Text('Lacak'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green[700],
+                  backgroundColor: Colors.green,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -264,7 +309,7 @@ class DashboardScreen extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.green[600]!, Colors.green[400]!],
+          colors: [Colors.green!, Colors.green!],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -295,11 +340,12 @@ class DashboardScreen extends StatelessWidget {
   Widget _buildStatisticsSection() {
     return Row(
       children: [
-        Expanded(child: _buildStatCard('Total\nLaporan', '12', Icons.assignment, Colors.blue)),
+        // 🔥 Memasukkan variabel statistik langsung ke dalam parameter fungsi
+        Expanded(child: _buildStatCard('Total\nLaporan', _totalLaporan.toString(), Icons.assignment, Colors.blue)),
         const SizedBox(width: 12),
-        Expanded(child: _buildStatCard('Sedang\nDiproses', '3', Icons.sync, Colors.orange)),
+        Expanded(child: _buildStatCard('Sedang\nDiproses', _laporanDiproses.toString(), Icons.sync, Colors.orange)),
         const SizedBox(width: 12),
-        Expanded(child: _buildStatCard('Selesai\nDitangani', '9', Icons.check_circle, Colors.green)),
+        Expanded(child: _buildStatCard('Selesai\nDitangani', _laporanSelesai.toString(), Icons.check_circle, Colors.green)),
       ],
     );
   }
@@ -318,25 +364,53 @@ class DashboardScreen extends StatelessWidget {
           const SizedBox(height: 8),
           Text(count, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
-          Text(title, textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+          Text(title, textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Colors.grey)),
         ],
       ),
     );
   }
 
   Widget _buildRecentReportsList() {
-    final List<Map<String, dynamic>> dummyReports = [
-      {'title': 'Tumpukan sampah di Pasar Balige', 'date': '10 Mar 2026', 'status': 'Diproses', 'statusColor': Colors.orange},
-      {'title': 'Sampah plastik di pinggir Danau', 'date': '08 Mar 2026', 'status': 'Selesai', 'statusColor': Colors.green},
-      {'title': 'Pohon tumbang dan sampah daun', 'date': '05 Mar 2026', 'status': 'Selesai', 'statusColor': Colors.green},
-    ];
+    if (_reports.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(child: Text("Memuat laporan...", style: TextStyle(color: Colors.grey))),
+      );
+    }
+
+    // Ambil maksimal 3 data terbaru
+    final recentReports = _reports.take(3).toList();
 
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: dummyReports.length,
+      itemCount: recentReports.length,
       itemBuilder: (context, index) {
-        final report = dummyReports[index];
+        final report = recentReports[index];
+        
+        // Logika warna status
+        Color statusColor = Colors.orange; 
+        String statusLabel = report['status'] ?? 'PENDING';
+        
+        if (statusLabel == 'PENDING') { 
+          statusColor = Colors.blue; 
+          statusLabel = 'Dilaporkan'; 
+        } else if (statusLabel == 'DIPROSES') { 
+          statusColor = Colors.orange; 
+          statusLabel = 'Diproses'; 
+        } else if (statusLabel == 'SELESAI') { 
+          statusColor = Colors.green; 
+          statusLabel = 'Selesai'; 
+        }
+
+        // Format Tanggal
+        String formattedDate = '';
+        if (report['createdAt'] != null) {
+          DateTime dt = DateTime.parse(report['createdAt']).toLocal();
+          List<String> months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+          formattedDate = '${dt.day.toString().padLeft(2, '0')} ${months[dt.month - 1]} ${dt.year}';
+        }
+
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           elevation: 0,
@@ -345,17 +419,24 @@ class DashboardScreen extends StatelessWidget {
             contentPadding: const EdgeInsets.all(12),
             leading: ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: Container(width: 60, height: 60, color: Colors.grey[300], child: const Icon(Icons.image, color: Colors.grey)),
+              child: report['photoUrl'] != null 
+                  ? Image.network(report['photoUrl'], width: 60, height: 60, fit: BoxFit.cover)
+                  : Container(width: 60, height: 60, color: Colors.grey, child: const Icon(Icons.image, color: Colors.grey)),
             ),
-            title: Text(report['title'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), maxLines: 2, overflow: TextOverflow.ellipsis),
+            title: Text(
+              report['description'] ?? 'Laporan', 
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), 
+              maxLines: 2, 
+              overflow: TextOverflow.ellipsis
+            ),
             subtitle: Padding(
               padding: const EdgeInsets.only(top: 8.0),
-              child: Text(report['date'], style: const TextStyle(fontSize: 12)),
+              child: Text(formattedDate, style: const TextStyle(fontSize: 12)),
             ),
             trailing: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(color: report['statusColor'].withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-              child: Text(report['status'], style: TextStyle(color: report['statusColor'], fontSize: 12, fontWeight: FontWeight.bold)),
+              decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+              child: Text(statusLabel, style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.bold)),
             ),
           ),
         );

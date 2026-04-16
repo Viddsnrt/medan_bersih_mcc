@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http; 
+import 'dart:convert'; // Wajib ditambahkan untuk membaca JSON
 
 // Tambahkan import untuk halaman SuccessScreen yang baru dibuat
 import 'success_screen.dart'; 
@@ -102,7 +103,7 @@ class _ReportScreenState extends State<ReportScreen> {
     }
   }
 
-  // --- FUNGSI MENGIRIM DATA KE NODE.JS API ---
+  // --- FUNGSI MENGIRIM DATA KE NODE.JS API (YANG SUDAH DIPERBARUI) ---
   Future<void> _submitReport() async {
     if (_imageFile == null || _titleController.text.isEmpty || _currentPosition == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -116,44 +117,54 @@ class _ReportScreenState extends State<ReportScreen> {
     });
 
     try {
-      var uri = Uri.parse('http://10.0.2.2:5000/api/laporan');
+      // 1. URL Baru mengarah ke /create
+      var uri = Uri.parse('http://10.61.166.195:5000/api/laporan/create');
       var request = http.MultipartRequest('POST', uri);
 
-      request.fields['title'] = _titleController.text;
-      request.fields['description'] = _descController.text;
-      request.fields['category'] = _selectedCategory;
+      // 2. Sesuaikan nama field dengan yang ditangkap di Node.js
+      // Karena di database hanya ada 'description', kita gabungkan judul dan deskripsi dari user
+      request.fields['description'] = "[${_titleController.text}] - ${_descController.text}";
+      request.fields['jenisSampah'] = _selectedCategory;
       request.fields['latitude'] = _currentPosition!.latitude.toString();
       request.fields['longitude'] = _currentPosition!.longitude.toString();
-      request.fields['userId'] = '1'; 
+      
+      // CATATAN: Sementara pakai ID 2 (Bisa diganti nanti kalau sudah pakai SharedPreferences)
+      request.fields['userId'] = '2'; 
 
+      // 3. Masukkan File Foto
       var multipartFile = await http.MultipartFile.fromPath('photo', _imageFile!.path);
       request.files.add(multipartFile);
 
+      // 4. Kirim Request
       var streamedResponse = await request.send();
       var response = await http.Response.fromStream(streamedResponse);
+      
+      // 5. Baca JSON dari backend Node.js
+      var data = jsonDecode(response.body);
 
-      // --- BAGIAN YANG DIPERBARUI ---
-      if (response.statusCode == 200 || response.statusCode == 201) {
+      // Jika berhasil
+      if (response.statusCode == 201 && data['success'] == true) {
         if (mounted) {
-          // Arahkan ke halaman SuccessScreen dan hapus ReportScreen dari tumpukan
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(data['message']), backgroundColor: Colors.green),
+          );
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => SuccessScreen()),
+            MaterialPageRoute(builder: (context) =>  SuccessScreen()),
           );
         }
       } else {
+        // Jika gagal (tampilkan pesan error dari backend)
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Gagal mengirim laporan: HTTP ${response.statusCode}')),
+            SnackBar(content: Text(data['message'] ?? 'Gagal mengirim laporan'), backgroundColor: Colors.red),
           );
         }
       }
-      // --- AKHIR BAGIAN YANG DIPERBARUI ---
-
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Terjadi kesalahan jaringan: $e')),
+          SnackBar(content: Text('Terjadi kesalahan jaringan: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -229,7 +240,7 @@ class _ReportScreenState extends State<ReportScreen> {
                     label: const Text('Galeri'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.green,
-                      side: BorderSide(color: Colors.green!),
+                      side: BorderSide(color: Colors.green),
                     ),
                   ),
                 ),
@@ -240,9 +251,9 @@ class _ReportScreenState extends State<ReportScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.blue,
+                color: Colors.blue.shade50,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blue!),
+                border: Border.all(color: Colors.blue),
               ),
               child: Row(
                 children: [
@@ -261,7 +272,7 @@ class _ReportScreenState extends State<ReportScreen> {
                                 child: CircularProgressIndicator(strokeWidth: 2))
                             : Text(
                                 _locationMessage,
-                                style: TextStyle(fontSize: 13, color: Colors.grey),
+                                style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
                               ),
                       ],
                     ),

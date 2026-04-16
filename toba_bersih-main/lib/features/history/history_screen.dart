@@ -1,53 +1,111 @@
 import 'package:flutter/material.dart';
-import 'package:toba_bersih/features/history/report_detail_screen.dart'; // Sesuaikan nama package
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'report_detail_screen.dart'; 
 
-class HistoryScreen extends StatelessWidget {
+// 🔥 1. Import library Socket.io
+import 'package:socket_io_client/socket_io_client.dart' as IO; 
+
+class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // Dummy data riwayat laporan
-    final List<Map<String, dynamic>> historyReports = [
-      {
-        'title': 'Tumpukan sampah plastik di tepian Danau, Balige',
-        'date': '10 Mar 2026',
-        'status': 'Diproses',
-        'category': 'Sampah Danau',
-      },
-      {
-        'title': 'Fasilitas tempat sampah rusak di Alun-alun',
-        'date': '08 Mar 2026',
-        'status': 'Dilaporkan',
-        'category': 'Fasilitas Rusak',
-      },
-      {
-        'title': 'Sampah pasar belum diangkut 3 hari',
-        'date': '05 Mar 2026',
-        'status': 'Selesai',
-        'category': 'Tumpukan Sampah',
-      },
-      {
-        'title': 'Limbah rumah tangga di selokan',
-        'date': '01 Mar 2026',
-        'status': 'Ditolak',
-        'category': 'Lainnya',
-      },
-    ];
+  State<HistoryScreen> createState() => _HistoryScreenState();
+}
 
+class _HistoryScreenState extends State<HistoryScreen> {
+  List<dynamic> _allReports = [];
+  bool _isLoading = true;
+  
+  // 🔥 2. Deklarasi variabel Socket dan IP Address
+  IO.Socket? socket; 
+  final String ipAddress = '10.61.166.195';
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchData();
+    _initSocket(); // 🔥 3. Panggil fungsi penyambung socket saat layar dibuka
+  }
+
+  // =========================================================
+  // 🔥 4. FUNGSI UNTUK MENGHUBUNGKAN WEBSOCKET KE SERVER
+  // =========================================================
+  void _initSocket() {
+    socket = IO.io('http://$ipAddress:5000', <String, dynamic>{
+      'transports': ['websocket'],
+      'autoConnect': false,
+    });
+
+    socket!.connect();
+
+    socket!.onConnect((_) {
+      debugPrint('🔌 Berhasil terhubung ke WebSocket Server!');
+    });
+
+    // MENDENGARKAN EVENT DARI NODE.JS
+    socket!.on('status_laporan_berubah', (data) {
+      debugPrint('🔔 ADA UPDATE REALTIME DARI ADMIN: $data');
+      
+      // Jika komponen masih aktif di layar (mounted), perbarui UI-nya
+      if (mounted && data != null && data['reportId'] != null) {
+        setState(() {
+          // Cari laporan yang ID-nya cocok dengan yang dikirim server
+          for (var i = 0; i < _allReports.length; i++) {
+            if (_allReports[i]['id'].toString() == data['reportId'].toString()) {
+              // Langsung timpa status lamanya dengan status baru
+              _allReports[i]['status'] = data['newStatus']; 
+              break;
+            }
+          }
+        });
+      }
+    });
+  }
+
+  // 🔥 5. PENTING: Putuskan koneksi socket saat pengguna keluar dari halaman ini agar tidak boros baterai
+  @override
+  void dispose() {
+    socket?.disconnect();
+    socket?.dispose();
+    super.dispose();
+  }
+  // =========================================================
+
+  Future<void> _fetchData() async {
+    setState(() => _isLoading = true);
+    try {
+      // Memakai variabel ipAddress agar seragam dengan Socket
+      final response = await http.get(Uri.parse('http://$ipAddress:5000/api/laporan/user/2')); 
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() => _allReports = data['data']);
+      }
+    } catch (e) {
+      debugPrint("Error: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal terhubung ke server. Pastikan HP dan Laptop di WiFi yang sama!')),
+        );
+      }
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4, 
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Riwayat Laporan'),
-          backgroundColor: Colors.green[700],
+          backgroundColor: Colors.green,
           foregroundColor: Colors.white,
-          elevation: 0,
           bottom: const TabBar(
             isScrollable: true,
             indicatorColor: Colors.white,
-            indicatorWeight: 3,
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white70,
             tabs: [
               Tab(text: 'Semua'),
               Tab(text: 'Dilaporkan'),
@@ -56,137 +114,77 @@ class HistoryScreen extends StatelessWidget {
             ],
           ),
         ),
-        body: TabBarView(
-          children: [
-            // PERUBAHAN: Sekarang kita menambahkan 'context' ke dalam pemanggilan fungsi
-            _buildReportList(context, historyReports),
-            _buildReportList(context, historyReports.where((r) => r['status'] == 'Dilaporkan').toList()),
-            _buildReportList(context, historyReports.where((r) => r['status'] == 'Diproses').toList()),
-            _buildReportList(context, historyReports.where((r) => r['status'] == 'Selesai').toList()),
-          ],
+        body: RefreshIndicator(
+          onRefresh: _fetchData,
+          child: _isLoading 
+            ? const Center(child: CircularProgressIndicator())
+            : TabBarView(
+                children: [
+                  _buildReportList(context, _allReports),
+                  _buildReportList(context, _allReports.where((r) => r['status'] == 'PENDING').toList()),
+                  _buildReportList(context, _allReports.where((r) => r['status'] == 'DIPROSES').toList()),
+                  _buildReportList(context, _allReports.where((r) => r['status'] == 'SELESAI').toList()),
+                ],
+              ),
         ),
       ),
     );
   }
 
-  // PERUBAHAN: Menambahkan 'BuildContext context' sebagai parameter pertama
-  Widget _buildReportList(BuildContext context, List<Map<String, dynamic>> reports) {
+  Widget _buildReportList(BuildContext context, List<dynamic> reports) {
     if (reports.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.assignment_outlined, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              'Belum ada laporan di kategori ini',
-              style: TextStyle(color: Colors.grey[600], fontSize: 16),
-            ),
-          ],
-        ),
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: const [
+          SizedBox(height: 200),
+          Center(child: Text("Belum ada laporan di kategori ini", style: TextStyle(color: Colors.grey))),
+        ],
       );
     }
-
     return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       itemCount: reports.length,
-      itemBuilder: (context, index) {
-        final report = reports[index];
-        // PERUBAHAN: Meneruskan 'context' ke dalam _buildReportCard
-        return _buildReportCard(context, report);
-      },
+      itemBuilder: (context, index) => _buildReportCard(context, reports[index]),
     );
   }
 
-  // PERUBAHAN: Menambahkan 'BuildContext context' di sini agar Navigator bisa bekerja
   Widget _buildReportCard(BuildContext context, Map<String, dynamic> report) {
-    Color statusColor;
-    switch (report['status']) {
-      case 'Dilaporkan':
-        statusColor = Colors.blue;
-        break;
-      case 'Diproses':
-        statusColor = Colors.orange;
-        break;
-      case 'Selesai':
-        statusColor = Colors.green;
-        break;
-      case 'Ditolak':
-        statusColor = Colors.red;
-        break;
-      default:
-        statusColor = Colors.grey;
-    }
+    Color statusColor = Colors.grey;
+    String statusLabel = report['status'] ?? 'PENDING';
+    
+    if (statusLabel == 'PENDING') { statusColor = Colors.blue; statusLabel = 'Dilaporkan'; }
+    if (statusLabel == 'DIPROSES') { statusColor = Colors.orange; statusLabel = 'Diproses'; }
+    if (statusLabel == 'SELESAI') { statusColor = Colors.green; statusLabel = 'Selesai'; }
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
-      elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          Navigator.push(
-            context, // Sekarang context ini valid dan dikenali!
-             MaterialPageRoute(
-              builder: (context) => ReportDetailScreen(reportData: report),
-            ),
-          );
-        },
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ReportDetailScreen(reportData: report))),
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  width: 80,
-                  height: 80,
-                  color: Colors.grey[300],
-                  child: const Icon(Icons.image, color: Colors.grey, size: 30),
-                ),
+                child: report['photoUrl'] != null 
+                  ? Image.network(report['photoUrl'], width: 80, height: 80, fit: BoxFit.cover)
+                  : Container(width: 80, height: 80, color: Colors.grey, child: const Icon(Icons.image)),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          report['category'],
-                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                        ),
-                        Text(
-                          report['date'],
-                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                        ),
-                      ],
-                    ),
+                    Text(report['jenisSampah'] ?? 'Laporan Warga', style: const TextStyle(fontSize: 12, color: Colors.grey)),
                     const SizedBox(height: 8),
-                    Text(
-                      report['title'],
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    Text(report['description'] ?? 'Tidak ada deskripsi', style: const TextStyle(fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 12),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: statusColor.withOpacity(0.5)),
-                      ),
-                      child: Text(
-                        report['status'],
-                        style: TextStyle(
-                          color: statusColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+                      child: Text(statusLabel, style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),

@@ -7,47 +7,54 @@ class ReportDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Menentukan status untuk mewarnai badge dan timeline
-    final String status = reportData['status'] ?? 'Dilaporkan';
+    final String status = reportData['status'] ?? 'PENDING';
+    
+    // Status Logic untuk Timeline
+    bool step1 = true; 
+    bool step2 = status == 'DIPROSES' || status == 'SELESAI';
+    bool step3 = status == 'DIPROSES' || status == 'SELESAI';
+    bool step4 = status == 'SELESAI';
+
+    // Format Tanggal (Dari createdAt backend ke format jam dan tanggal)
+    String formattedDate = "Waktu tidak diketahui";
+    if (reportData['createdAt'] != null) {
+      DateTime dt = DateTime.parse(reportData['createdAt']).toLocal();
+      formattedDate = "${dt.day}/${dt.month}/${dt.year}, ${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')} WIB";
+    }
+
+    // Ubah text status
+    String statusLabel = 'Dilaporkan';
     Color statusColor = Colors.blue;
-    if (status == 'Diproses') statusColor = Colors.orange;
-    if (status == 'Selesai') statusColor = Colors.green;
-    if (status == 'Ditolak') statusColor = Colors.red;
+    if (status == 'DIPROSES') { statusLabel = 'Diproses'; statusColor = Colors.orange; }
+    if (status == 'SELESAI') { statusLabel = 'Selesai'; statusColor = Colors.green; }
 
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        foregroundColor: Colors.black, // Warna panah back dan text
+        foregroundColor: Colors.black,
         title: const Text('Status Laporan', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         centerTitle: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.share, color: Colors.green),
-            onPressed: () {
-              // TODO: Fitur share laporan
-            },
-          ),
-        ],
       ),
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. GAMBAR LAPORAN
+            // 1. GAMBAR DARI DATABASE
             Container(
               width: double.infinity,
               height: 220,
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
-                color: Colors.grey[300],
-                image: const DecorationImage(
-                  // Menggunakan placeholder gambar alam/sampah dari internet untuk simulasi
-                  image: NetworkImage('https://images.unsplash.com/photo-1611284446314-60a58ac0deb9?auto=format&fit=crop&q=80&w=800'),
-                  fit: BoxFit.cover,
-                ),
+                color: Colors.grey,
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: reportData['photoUrl'] != null
+                    ? Image.network(reportData['photoUrl'], fit: BoxFit.cover)
+                    : const Center(child: Icon(Icons.image, size: 50, color: Colors.grey)),
               ),
             ),
 
@@ -67,50 +74,48 @@ class ReportDetailScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          status.toUpperCase(),
-                          style: TextStyle(
-                            color: statusColor,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          statusLabel.toUpperCase(),
+                          style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.bold),
                         ),
                       ),
                       Text(
-                        'ID: TB-2026-${DateTime.now().millisecondsSinceEpoch.toString().substring(9)}',
-                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                        'ID: #${reportData['id'].toString().padLeft(5, '0')}',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
 
-                  // 3. JUDUL LAPORAN
+                  // 3. JENIS SAMPAH & DESKRIPSI
                   Text(
-                    reportData['title'] ?? 'Judul Tidak Tersedia',
+                    reportData['jenisSampah'] ?? 'Kategori Laporan',
                     style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, height: 1.3),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
+                  Text(
+                    reportData['description'] ?? 'Tidak ada deskripsi rinci dari pelapor.',
+                    style: TextStyle(fontSize: 14, color: Colors.grey, height: 1.4),
+                  ),
+                  const SizedBox(height: 16),
 
-                  // 4. TANGGAL & LOKASI
+                  // 4. TANGGAL & KOORDINAT
                   Row(
                     children: [
-                      Icon(Icons.calendar_today_outlined, size: 16, color: Colors.grey[600]),
+                      Icon(Icons.calendar_today_outlined, size: 16, color: Colors.grey),
                       const SizedBox(width: 8),
-                      Text(
-                        '${reportData['date']}, 09:15 WIB',
-                        style: TextStyle(color: Colors.grey[600], fontSize: 13),
-                      ),
+                      Text(formattedDate, style: TextStyle(color: Colors.grey, fontSize: 13)),
                     ],
                   ),
                   const SizedBox(height: 8),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.location_on_outlined, size: 18, color: Colors.green[700]),
+                      Icon(Icons.location_on_outlined, size: 18, color: Colors.green),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Jl. Sisingamangaraja No. 12, Balige, Kabupaten Toba',
-                          style: TextStyle(color: Colors.grey[700], fontSize: 13, height: 1.4),
+                          'Koordinat: ${reportData['latitude']}, ${reportData['longitude']}',
+                          style: TextStyle(color: Colors.grey, fontSize: 13, height: 1.4),
                         ),
                       ),
                     ],
@@ -128,47 +133,27 @@ class ReportDetailScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
 
-                  // Logika sederhana untuk status aktif timeline
                   _buildTimelineItem(
-                    isFirst: true,
-                    isDone: true,
-                    isActive: status == 'Dilaporkan',
-                    icon: Icons.check_circle_outline,
-                    title: 'Laporan Diterima',
-                    subtitle: 'Sistem telah memverifikasi laporan Anda',
-                    time: '09:15',
+                    isFirst: true, isDone: step1, isActive: status == 'PENDING',
+                    icon: Icons.check_circle_outline, title: 'Laporan Diterima', 
+                    subtitle: 'Laporan telah diverifikasi oleh sistem', time: '',
                   ),
                   _buildTimelineItem(
-                    isDone: status == 'Diproses' || status == 'Selesai',
-                    isActive: false,
-                    icon: Icons.person_pin_circle_outlined,
-                    title: 'Petugas Ditugaskan',
-                    subtitle: 'Petugas DLH menuju lokasi',
-                    time: status == 'Diproses' || status == 'Selesai' ? '10:30' : '--:--',
+                    isDone: step2, isActive: false,
+                    icon: Icons.person_pin_circle_outlined, title: 'Menunggu Petugas', 
+                    subtitle: 'Admin meninjau laporan Anda', time: '',
                   ),
                   _buildTimelineItem(
-                    isDone: status == 'Diproses' || status == 'Selesai',
-                    isActive: status == 'Diproses',
-                    icon: Icons.local_shipping_outlined,
-                    title: 'Dalam Perjalanan / Penanganan',
-                    subtitle: status == 'Diproses' 
-                        ? 'Armada sedang menuju lokasi Anda' 
-                        : 'Menunggu penanganan...',
-                    time: status == 'Diproses' || status == 'Selesai' ? '11:45' : '--:--',
+                    isDone: step3, isActive: status == 'DIPROSES',
+                    icon: Icons.local_shipping_outlined, title: 'Dalam Penanganan', 
+                    subtitle: status == 'DIPROSES' ? 'Armada / Petugas menuju lokasi' : 'Menunggu armada...', time: '',
                   ),
                   _buildTimelineItem(
-                    isLast: true,
-                    isDone: status == 'Selesai',
-                    isActive: status == 'Selesai',
-                    icon: Icons.delete_outline,
-                    title: 'Sampah Diangkut',
-                    subtitle: status == 'Selesai' 
-                        ? 'Penyelesaian pembersihan lokasi'
-                        : 'Menunggu proses selesai',
-                    time: status == 'Selesai' ? '13:00' : '--:--',
+                    isLast: true, isDone: step4, isActive: status == 'SELESAI',
+                    icon: Icons.delete_outline, title: 'Selesai', 
+                    subtitle: status == 'SELESAI' ? 'Sampah / Masalah telah diatasi' : 'Menunggu penyelesaian', time: '',
                   ),
-                  
-                  const SizedBox(height: 40), // Ruang kosong di bawah (tanpa profil petugas)
+                  const SizedBox(height: 40),
                 ],
               ),
             ),
@@ -189,7 +174,6 @@ class ReportDetailScreen extends StatelessWidget {
     required String subtitle,
     required String time,
   }) {
-    // Warna dinamis berdasarkan status
     Color iconColor = isDone || isActive ? Colors.white : Colors.grey.shade400;
     Color circleColor = isDone || isActive ? const Color(0xFF10C65C) : Colors.grey.shade200;
     Color lineColor = isDone ? const Color(0xFF10C65C) : Colors.grey.shade300;
@@ -199,42 +183,25 @@ class ReportDetailScreen extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Bagian Garis dan Ikon
           SizedBox(
             width: 40,
             child: Column(
               children: [
-                // Garis Atas
-                Expanded(
-                  child: Container(
-                    width: 2,
-                    color: isFirst ? Colors.transparent : lineColor,
-                  ),
-                ),
-                // Lingkaran Ikon
+                Expanded(child: Container(width: 2, color: isFirst ? Colors.transparent : lineColor)),
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: circleColor,
                     shape: BoxShape.circle,
-                    boxShadow: isActive ? [
-                      BoxShadow(color: const Color(0xFF10C65C).withOpacity(0.4), blurRadius: 8, spreadRadius: 2)
-                    ] : [],
+                    boxShadow: isActive ? [BoxShadow(color: const Color(0xFF10C65C).withOpacity(0.4), blurRadius: 8, spreadRadius: 2)] : [],
                   ),
                   child: Icon(icon, color: iconColor, size: 18),
                 ),
-                // Garis Bawah
-                Expanded(
-                  child: Container(
-                    width: 2,
-                    color: isLast ? Colors.transparent : lineColor,
-                  ),
-                ),
+                Expanded(child: Container(width: 2, color: isLast ? Colors.transparent : lineColor)),
               ],
             ),
           ),
           const SizedBox(width: 16),
-          // Bagian Teks (Judul, Subjudul, Waktu)
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 12.0),
@@ -245,31 +212,10 @@ class ReportDetailScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          title,
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: titleColor,
-                          ),
-                        ),
+                        Text(title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: titleColor)),
                         const SizedBox(height: 4),
-                        Text(
-                          subtitle,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: isActive ? const Color(0xFF10C65C) : Colors.grey[500],
-                          ),
-                        ),
+                        Text(subtitle, style: TextStyle(fontSize: 13, color: isActive ? const Color(0xFF10C65C) : Colors.grey)),
                       ],
-                    ),
-                  ),
-                  Text(
-                    time,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[500],
-                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],

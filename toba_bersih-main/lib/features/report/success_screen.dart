@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+// 🔥 Pastikan path import ini sesuai dengan letak file HistoryScreen kamu
+import 'package:toba_bersih/features/history/history_screen.dart';
 
 class SuccessScreen extends StatelessWidget {
+  const SuccessScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -79,8 +83,12 @@ class SuccessScreen extends StatelessWidget {
                   ),
                 ),
                 onPressed: () {
-                  // Arahkan ke halaman riwayat/status laporan kamu di sini
-                  // Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => RiwayatScreen()));
+                  // 🔥 MENGARAHKAN KE HALAMAN RIWAYAT
+                  // Menggunakan pushReplacement agar setelah masuk ke riwayat, warga tidak bisa "back" ke SuccessScreen lagi
+                  Navigator.pushReplacement(
+                    context, 
+                    MaterialPageRoute(builder: (context) => const HistoryScreen())
+                  );
                 },
                 child: const Text(
                   "Lihat Status Laporan",
