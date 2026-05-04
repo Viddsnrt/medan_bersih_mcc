@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http; 
 import 'dart:convert'; 
+import 'package:shared_preferences/shared_preferences.dart'; // 🔥 IMPORT DITAMBAHKAN
 
 // Tambahkan import untuk halaman SuccessScreen
 import 'success_screen.dart'; 
@@ -12,10 +13,11 @@ class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
 
   @override
+  // 🔥 PERBAIKAN 1: Tambahkan WidgetsBindingObserver untuk melacak aplikasi diminimize/dibuka lagi
   State<ReportScreen> createState() => _ReportScreenState();
 }
 
-class _ReportScreenState extends State<ReportScreen> {
+class _ReportScreenState extends State<ReportScreen> with WidgetsBindingObserver {
   File? _imageFile;
   final ImagePicker _picker = ImagePicker();
 
@@ -29,34 +31,94 @@ class _ReportScreenState extends State<ReportScreen> {
   
   bool _isSubmitting = false; 
 
+  // 💡 CATATAN: Pastikan IP ini sesuai dengan IPv4 laptopmu saat ini
+  final String ipAddress = '10.61.166.195';
+
   @override
   void initState() {
     super.initState();
-    _getCurrentLocation();
+    WidgetsBinding.instance.addObserver(this);
+    _getCurrentLocation(showDialogIfOff: false);
   }
 
-  // 🔥 FUNGSI BARU: Untuk membersihkan form setelah sukses
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _titleController.dispose();
+    _descController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _getCurrentLocation(showDialogIfOff: false);
+    }
+  }
+
   void _resetForm() {
     setState(() {
       _imageFile = null;
       _titleController.clear();
       _descController.clear();
       _selectedCategory = 'Tumpukan Sampah';
-      // Lokasi tidak perlu di-reset agar user tidak capek nyari GPS lagi
     });
   }
 
-  Future<void> _getCurrentLocation() async {
+  Future<void> _getCurrentLocation({bool showDialogIfOff = true}) async {
     bool serviceEnabled;
     LocationPermission permission;
+
+    setState(() {
+      _isLoadingLocation = true;
+      _locationMessage = "Memeriksa status GPS...";
+    });
 
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       setState(() {
         _isLoadingLocation = false;
-        _locationMessage = "GPS tidak aktif. Mohon nyalakan GPS.";
+        _locationMessage = "GPS mati. Tap di sini untuk menyalakan.";
       });
-      return;
+
+      if (showDialogIfOff && mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Row(
+                children: [
+                  Icon(Icons.location_off_rounded, color: Colors.red),
+                  SizedBox(width: 8),
+                  Text('GPS Tidak Aktif', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                ],
+              ),
+              content: const Text('Toba Bersih butuh akses lokasi untuk memastikan titik tumpukan sampah akurat. Yuk, nyalakan GPS-mu dulu!'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.shade600,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () async {
+                    Navigator.of(context).pop(); 
+                    await Geolocator.openLocationSettings(); 
+                  },
+                  child: const Text('Buka Pengaturan'),
+                ),
+              ],
+            );
+          },
+        );
+      }
+      return; 
     }
 
     permission = await Geolocator.checkPermission();
@@ -74,48 +136,59 @@ class _ReportScreenState extends State<ReportScreen> {
     if (permission == LocationPermission.deniedForever) {
       setState(() {
         _isLoadingLocation = false;
-        _locationMessage = "Izin lokasi ditolak permanen.";
+        _locationMessage = "Izin ditolak permanen.";
       });
       return;
     }
 
+    setState(() {
+      _locationMessage = "Mencari titik kordinat...";
+    });
+
     try {
       Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-      setState(() {
-        _currentPosition = position;
-        _isLoadingLocation = false;
-        _locationMessage = "${position.latitude}, ${position.longitude}";
-      });
+      if (mounted) {
+        setState(() {
+          _currentPosition = position;
+          _isLoadingLocation = false;
+          _locationMessage = "${position.latitude}, ${position.longitude}";
+        });
+      }
     } catch (e) {
-      setState(() {
-        _isLoadingLocation = false;
-        _locationMessage = "Gagal mendapatkan lokasi.";
-      });
+      if (mounted) {
+        setState(() {
+          _isLoadingLocation = false;
+          _locationMessage = "Gagal mendapatkan lokasi.";
+        });
+      }
     }
   }
 
   Future<void> _pickImage(ImageSource source) async {
     try {
-      final XFile? pickedFile = await _picker.pickImage(
-        source: source,
-        imageQuality: 70, 
-      );
-
+      final XFile? pickedFile = await _picker.pickImage(source: source, imageQuality: 70);
       if (pickedFile != null) {
         setState(() {
           _imageFile = File(pickedFile.path);
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal mengambil gambar: $e')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal mengambil gambar: $e')));
     }
   }
 
   Future<void> _submitReport() async {
     if (_imageFile == null || _titleController.text.isEmpty || _currentPosition == null) {
-      _showCustomSnackBar('Mohon lengkapi foto, judul, dan lokasi!', isError: true);
+      _showCustomSnackBar('Mohon lengkapi foto, judul, dan pastikan GPS menyala!', isError: true);
+      return;
+    }
+
+    // 🔥 AMBIL ID USER DARI MEMORI HP
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final String? savedUserId = prefs.getString('userId');
+
+    if (savedUserId == null) {
+      _showCustomSnackBar('Sesi login tidak valid. Silakan logout dan login kembali.', isError: true);
       return;
     }
 
@@ -124,28 +197,27 @@ class _ReportScreenState extends State<ReportScreen> {
     });
 
     try {
-      var uri = Uri.parse('http://10.61.166.195:5000/api/laporan/create');
+      var uri = Uri.parse('http://$ipAddress:5000/api/laporan/create');
       var request = http.MultipartRequest('POST', uri);
 
       request.fields['description'] = "[${_titleController.text}] - ${_descController.text}";
       request.fields['jenisSampah'] = _selectedCategory;
       request.fields['latitude'] = _currentPosition!.latitude.toString();
       request.fields['longitude'] = _currentPosition!.longitude.toString();
-      request.fields['userId'] = '2'; 
+      
+      // 🔥 GUNAKAN ID OTOMATIS
+      request.fields['userId'] = savedUserId; 
 
       var multipartFile = await http.MultipartFile.fromPath('photo', _imageFile!.path);
       request.files.add(multipartFile);
 
-      var streamedResponse = await request.send();
+      var streamedResponse = await request.send().timeout(const Duration(seconds: 15));
       var response = await http.Response.fromStream(streamedResponse);
       var data = jsonDecode(response.body);
 
       if (response.statusCode == 201 && data['success'] == true) {
         if (mounted) {
-          
-          // 🔥 PANGGIL FUNGSI RESET SEBELUM MUNCULIN POP-UP
           _resetForm();
-
           showDialog(
             context: context,
             barrierDismissible: false, 
@@ -161,7 +233,7 @@ class _ReportScreenState extends State<ReportScreen> {
       }
     } catch (e) {
       if (mounted) {
-        _showCustomSnackBar('Terjadi kesalahan jaringan.', isError: true);
+        _showCustomSnackBar('Terjadi kesalahan jaringan atau waktu habis.', isError: true);
       }
     } finally {
       if (mounted) {
@@ -182,13 +254,6 @@ class _ReportScreenState extends State<ReportScreen> {
         margin: const EdgeInsets.all(16),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _descController.dispose();
-    super.dispose();
   }
 
   @override
@@ -283,52 +348,55 @@ class _ReportScreenState extends State<ReportScreen> {
             const SizedBox(height: 24),
 
             // 📍 KARTU LOKASI GPS
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.blue.shade100),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
-                    child: Icon(Icons.location_on_rounded, color: Colors.blue.shade600, size: 24),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Lokasi Terdeteksi', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Colors.blue.shade800)),
-                        const SizedBox(height: 4),
-                        _isLoadingLocation
-                            ? const SizedBox(
-                                height: 14,
-                                width: 14,
-                                child: CircularProgressIndicator(strokeWidth: 2))
-                            : Text(
-                                _locationMessage,
-                                style: TextStyle(fontSize: 13, color: Colors.blue.shade900, fontWeight: FontWeight.w500),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                      ],
+            GestureDetector(
+              onTap: () => _getCurrentLocation(showDialogIfOff: true),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: _currentPosition == null ? Colors.red.shade50 : Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: _currentPosition == null ? Colors.red.shade200 : Colors.blue.shade100),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
+                      child: Icon(
+                        _currentPosition == null ? Icons.location_off_rounded : Icons.location_on_rounded, 
+                        color: _currentPosition == null ? Colors.red.shade600 : Colors.blue.shade600, 
+                        size: 24
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.my_location_rounded, color: Colors.blue.shade700),
-                    onPressed: () {
-                      setState(() {
-                        _isLoadingLocation = true;
-                        _locationMessage = "Memperbarui lokasi...";
-                      });
-                      _getCurrentLocation();
-                    },
-                  )
-                ],
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Lokasi Terdeteksi', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: _currentPosition == null ? Colors.red.shade800 : Colors.blue.shade800)),
+                          const SizedBox(height: 4),
+                          _isLoadingLocation
+                              ? const SizedBox(
+                                  height: 14,
+                                  width: 14,
+                                  child: CircularProgressIndicator(strokeWidth: 2))
+                              : Text(
+                                  _locationMessage,
+                                  style: TextStyle(fontSize: 13, color: _currentPosition == null ? Colors.red.shade900 : Colors.blue.shade900, fontWeight: FontWeight.w500),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.my_location_rounded, color: _currentPosition == null ? Colors.red.shade700 : Colors.blue.shade700),
+                      onPressed: () {
+                        _getCurrentLocation(showDialogIfOff: true);
+                      },
+                    )
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 32),

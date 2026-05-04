@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:geolocator/geolocator.dart'; // 🔥 IMPORT GEOLOCATOR DI SINI
 
-import 'driver_map_screen.dart'; // Import Peta Supir
+import 'driver_map_screen.dart'; 
 
 class OperatorDashboardTab extends StatefulWidget {
   final String driverId;
@@ -18,13 +19,79 @@ class _OperatorDashboardTabState extends State<OperatorDashboardTab> {
   bool _isLoading = true;
   String _driverName = "Supir Toba";
   final String ipAddress = '10.61.166.195';
+  
+  // 🔥 STATE UNTUK MENYIMPAN LOKASI SUPIR SAAT INI
+  Position? _currentPosition;
 
   @override
   void initState() {
     super.initState();
     _loadDriverName();
     _fetchMyTasks();
+    _getCurrentLocation(); // 🔥 Panggil fungsi minta izin GPS saat halaman dibuka
   }
+
+  // ========================================================
+  // 🔥 FUNGSI SAKTI UNTUK MINTA IZIN & AMBIL LOKASI SUPIR
+  // ========================================================
+  Future<void> _getCurrentLocation() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    // 1. Cek apakah GPS HP menyala
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      debugPrint('Layanan GPS dinonaktifkan oleh pengguna.');
+      return;
+    }
+
+    // 2. Cek izin aplikasi
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      // Munculkan pop-up minta izin
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        debugPrint('Izin lokasi ditolak oleh supir.');
+        return;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      debugPrint('Izin lokasi ditolak permanen.');
+      return;
+    }
+
+    // 3. Ambil koordinat GPS supir yang super akurat
+    Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high);
+        
+    if (mounted) {
+      setState(() {
+        _currentPosition = position;
+      });
+      debugPrint("Lokasi Supir Didapat: ${position.latitude}, ${position.longitude}");
+    }
+  }
+
+  // 🔥 FUNGSI MENGHITUNG JARAK DARI SUPIR KE SAMPAH
+  String _calculateDistance(double targetLat, double targetLng) {
+    if (_currentPosition == null) {
+      return "Mencari lokasi...";
+    }
+    
+    double distanceInMeters = Geolocator.distanceBetween(
+      _currentPosition!.latitude,
+      _currentPosition!.longitude,
+      targetLat,
+      targetLng,
+    );
+
+    if (distanceInMeters > 1000) {
+      return "${(distanceInMeters / 1000).toStringAsFixed(1)} km dari Anda";
+    }
+    return "${distanceInMeters.toStringAsFixed(0)} meter dari Anda";
+  }
+  // ========================================================
 
   Future<void> _loadDriverName() async {
     final prefs = await SharedPreferences.getInstance();
@@ -59,7 +126,10 @@ class _OperatorDashboardTabState extends State<OperatorDashboardTab> {
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
-      onRefresh: _fetchMyTasks,
+      onRefresh: () async {
+        await _getCurrentLocation(); // Refresh lokasi juga kalau ditarik
+        await _fetchMyTasks();
+      },
       color: Colors.green.shade700,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
@@ -201,6 +271,13 @@ class _OperatorDashboardTabState extends State<OperatorDashboardTab> {
     if (statusStr == 'BEKERJA' || statusStr == 'DALAM_PERJALANAN') statusColor = Colors.amber.shade700;
     if (statusStr == 'SELESAI') statusColor = Colors.green.shade600;
 
+    // Ambil Koordinat Target
+    double lat = task['latitude'] != null ? double.tryParse(task['latitude'].toString()) ?? 2.3333 : 2.3333;
+    double lng = task['longitude'] != null ? double.tryParse(task['longitude'].toString()) ?? 99.0667 : 99.0667;
+    
+    // Hitung Jarak Asli
+    String distanceStr = _calculateDistance(lat, lng);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
@@ -250,12 +327,21 @@ class _OperatorDashboardTabState extends State<OperatorDashboardTab> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(task['location'] ?? 'Lokasi tidak diketahui', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Colors.black87, height: 1.3)),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 8),
                       Row(
                         children: [
                           Icon(Icons.access_time_filled_rounded, size: 14, color: Colors.grey.shade400),
                           const SizedBox(width: 6),
                           Text("Jadwal: $timeStr", style: TextStyle(color: Colors.grey.shade600, fontSize: 13, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      // 🔥 INDIKATOR JARAK REAL-TIME DITAMPILKAN DI SINI
+                      Row(
+                        children: [
+                          Icon(Icons.directions_car_rounded, size: 14, color: Colors.blue.shade400),
+                          const SizedBox(width: 6),
+                          Text(distanceStr, style: TextStyle(color: Colors.blue.shade700, fontSize: 13, fontWeight: FontWeight.w800)),
                         ],
                       )
                     ],
@@ -292,9 +378,6 @@ class _OperatorDashboardTabState extends State<OperatorDashboardTab> {
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(backgroundColor: themeColor, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
                 onPressed: () {
-                  double lat = task['latitude'] != null ? double.tryParse(task['latitude'].toString()) ?? 2.3333 : 2.3333;
-                  double lng = task['longitude'] != null ? double.tryParse(task['longitude'].toString()) ?? 99.0667 : 99.0667;
-
                   Navigator.push(
                     context,
                     MaterialPageRoute(

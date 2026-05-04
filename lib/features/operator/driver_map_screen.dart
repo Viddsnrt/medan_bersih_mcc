@@ -70,10 +70,16 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
 
     // 2. Dapatkan lokasi pertama kali untuk memusatkan peta
     Position initialPos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-    setState(() {
-      _currentDriverPos = LatLng(initialPos.latitude, initialPos.longitude);
-      _calculateDistance();
-    });
+    
+    if (mounted) {
+      setState(() {
+        _currentDriverPos = LatLng(initialPos.latitude, initialPos.longitude);
+        _calculateDistance();
+      });
+      
+      // 🔥 PUSATKAN KAMERA KE LOKASI SUPIR SAAT INI (Bukan ke lokasi sampah)
+      _mapController.move(_currentDriverPos!, 16.0); 
+    }
 
     // 3. Mulai mendengarkan pergerakan (Stream)
     const LocationSettings locationSettings = LocationSettings(
@@ -148,7 +154,8 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: destination,
+              // 🔥 JIKA _currentDriverPos belum dapat, arahkan ke sampah sementara. Kalau sudah, arahkan ke Supir.
+              initialCenter: _currentDriverPos ?? destination,
               initialZoom: 15.0,
             ),
             children: [

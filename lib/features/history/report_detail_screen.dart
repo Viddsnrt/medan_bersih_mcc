@@ -1,21 +1,72 @@
 import 'package:flutter/material.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
 
-class ReportDetailScreen extends StatelessWidget {
+class ReportDetailScreen extends StatefulWidget {
   final Map<String, dynamic> reportData;
 
   const ReportDetailScreen({super.key, required this.reportData});
 
   @override
+  State<ReportDetailScreen> createState() => _ReportDetailScreenState();
+}
+
+class _ReportDetailScreenState extends State<ReportDetailScreen> {
+  // Buat variabel state lokal untuk menyimpan data laporan yang bisa di-update
+  late Map<String, dynamic> _currentReportData;
+  
+  IO.Socket? socket; 
+  // 🔥 PENTING: Pastikan IP Address ini sama dengan yang ada di HistoryScreen!
+  final String ipAddress = '192.168.100.17';
+
+  @override
+  void initState() {
+    super.initState();
+    // Salin data awal dari halaman sebelumnya
+    _currentReportData = Map<String, dynamic>.from(widget.reportData);
+    _initSocket();
+  }
+
+  void _initSocket() {
+    socket = IO.io('http://$ipAddress:5000', <String, dynamic>{
+      'transports': ['websocket'],
+      'autoConnect': false,
+    });
+
+    socket!.connect();
+
+    // Mendengarkan event dari Backend
+    socket!.on('status_laporan_berubah', (data) {
+      if (mounted && data != null && data['reportId'] != null) {
+        // Cek apakah update ini untuk laporan yang sedang kita buka
+        if (data['reportId'].toString() == _currentReportData['id'].toString()) {
+          setState(() {
+            // Update statusnya dan render ulang layar!
+            _currentReportData['status'] = data['newStatus'];
+          });
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    socket?.disconnect();
+    socket?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final String status = reportData['status'] ?? 'PENDING';
+    // 🔥 Semua penggunaan widget.reportData sekarang diganti jadi _currentReportData
+    final String status = _currentReportData['status'] ?? 'PENDING';
     
     bool step1 = true; 
     bool step2 = status == 'DIPROSES' || status == 'DITINDAKLANJUTI' || status == 'SELESAI';
     bool step3 = status == 'SELESAI';
 
     String formattedDate = "Waktu tidak diketahui";
-    if (reportData['createdAt'] != null) {
-      DateTime dt = DateTime.parse(reportData['createdAt']).toLocal();
+    if (_currentReportData['createdAt'] != null) {
+      DateTime dt = DateTime.parse(_currentReportData['createdAt']).toLocal();
       List<String> months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
       formattedDate = "${dt.day.toString().padLeft(2,'0')} ${months[dt.month - 1]} ${dt.year}, ${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')} WIB";
     }
@@ -31,7 +82,7 @@ class ReportDetailScreen extends StatelessWidget {
       statusColor = Colors.green.shade600; 
     }
 
-    String jenisSampah = reportData['jenisSampah'] ?? 'Laporan Umum';
+    String jenisSampah = _currentReportData['jenisSampah'] ?? 'Laporan Umum';
     jenisSampah = jenisSampah.replaceAll('_', ' ');
 
     return Scaffold(
@@ -50,7 +101,7 @@ class ReportDetailScreen extends StatelessWidget {
           children: [
             // Gambar Hero dengan Shadow melayang
             Hero(
-              tag: 'report_image_${reportData['id']}',
+              tag: 'report_image_${_currentReportData['id']}',
               child: Container(
                 width: double.infinity,
                 height: 260,
@@ -64,8 +115,8 @@ class ReportDetailScreen extends StatelessWidget {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(24),
-                  child: reportData['photoUrl'] != null && reportData['photoUrl'].toString().isNotEmpty
-                      ? Image.network(reportData['photoUrl'], fit: BoxFit.cover)
+                  child: _currentReportData['photoUrl'] != null && _currentReportData['photoUrl'].toString().isNotEmpty
+                      ? Image.network(_currentReportData['photoUrl'], fit: BoxFit.cover)
                       : Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -97,9 +148,14 @@ class ReportDetailScreen extends StatelessWidget {
                           children: [
                             Icon(Icons.circle, size: 10, color: statusColor),
                             const SizedBox(width: 8),
-                            Text(
-                              statusLabel.toUpperCase(),
-                              style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                            // Animasi untuk teks status
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 300),
+                              child: Text(
+                                statusLabel.toUpperCase(),
+                                key: ValueKey(statusLabel), // Key penting untuk animasi
+                                style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                              ),
                             ),
                           ],
                         ),
@@ -108,7 +164,7 @@ class ReportDetailScreen extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
                         child: Text(
-                          'ID #${reportData['id'].toString().padLeft(5, '0')}',
+                          'ID #${_currentReportData['id'].toString().padLeft(5, '0')}',
                           style: TextStyle(color: Colors.grey.shade700, fontSize: 12, fontWeight: FontWeight.w900),
                         ),
                       ),
@@ -123,7 +179,7 @@ class ReportDetailScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    reportData['description'] ?? 'Tidak ada deskripsi rinci dari pelapor.',
+                    _currentReportData['description'] ?? 'Tidak ada deskripsi rinci dari pelapor.',
                     style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, height: 1.4, color: Colors.black87),
                   ),
                   const SizedBox(height: 24),
@@ -177,7 +233,7 @@ class ReportDetailScreen extends StatelessWidget {
                                   Text('Titik Koordinat', style: TextStyle(color: Colors.grey.shade500, fontSize: 12, fontWeight: FontWeight.w600)),
                                   const SizedBox(height: 2),
                                   Text(
-                                    '${reportData['latitude'] ?? '-'}, ${reportData['longitude'] ?? '-'}',
+                                    '${_currentReportData['latitude'] ?? '-'}, ${_currentReportData['longitude'] ?? '-'}',
                                     style: const TextStyle(color: Colors.black87, fontSize: 14, fontWeight: FontWeight.w800),
                                   ),
                                 ],
@@ -263,7 +319,9 @@ class ReportDetailScreen extends StatelessWidget {
             child: Column(
               children: [
                 Expanded(flex: 1, child: Container(width: 3, color: isFirst ? Colors.transparent : lineColor)),
-                Container(
+                // Animasi pada ikon
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: iconBgColor,
@@ -285,16 +343,22 @@ class ReportDetailScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: titleColor)),
+                  AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 300),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: titleColor, fontFamily: 'Roboto'),
+                    child: Text(title),
+                  ),
                   const SizedBox(height: 6),
-                  Text(
-                    subtitle, 
+                  AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 300),
                     style: TextStyle(
                       fontSize: 13, 
                       height: 1.4,
                       color: isActive ? primaryColor : Colors.grey.shade500,
-                      fontWeight: isActive ? FontWeight.w700 : FontWeight.w500
-                    )
+                      fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                      fontFamily: 'Roboto'
+                    ),
+                    child: Text(subtitle),
                   ),
                 ],
               ),

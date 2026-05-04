@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Sesuaikan nama 'toba_bersih' dengan nama project di pubspec.yaml kamu
 import 'package:toba_bersih/features/report/report_screen.dart';
@@ -123,27 +124,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _fetchDashboardData();
   }
 
-  Future<void> _fetchDashboardData() async {
-    try {
-      final response = await http.get(Uri.parse('http://$ipAddress:5000/api/laporan/user/2'));
-      
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final List<dynamic> reportsData = data['data'];
+ // Jangan lupa import di atas: import 'package:shared_preferences/shared_preferences.dart';
 
-        if (mounted) {
-          setState(() {
-            _reports = reportsData;
-            _totalLaporan = reportsData.length;
-            _laporanDiproses = reportsData.where((r) => r['status'] == 'DIPROSES' || r['status'] == 'DITINDAKLANJUTI').length;
-            _laporanSelesai = reportsData.where((r) => r['status'] == 'SELESAI').length;
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint("Error fetching dashboard data: $e");
+Future<void> _fetchDashboardData() async {
+  try {
+    // 🔥 1. AMBIL ID DARI MEMORI HP
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final String? savedUserId = prefs.getString('userId');
+
+    if (savedUserId == null) {
+      debugPrint("Waduh, User ID belum tersimpan! Harus login ulang.");
+      return; // Stop fungsi kalau ID gak ada
     }
+
+    // 🔥 2. GUNAKAN ID OTOMATIS TERSEBUT KE DALAM URL
+    final response = await http.get(Uri.parse('http://$ipAddress:5000/api/laporan/user/$savedUserId'));
+    
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final List<dynamic> reportsData = data['data'];
+
+      if (mounted) {
+        setState(() {
+          _reports = reportsData;
+          _totalLaporan = reportsData.length;
+          _laporanDiproses = reportsData.where((r) => 
+            r['status'] == 'PENDING' || 
+            r['status'] == 'DIPROSES' || 
+            r['status'] == 'DITINDAKLANJUTI'
+          ).length;
+          _laporanSelesai = reportsData.where((r) => r['status'] == 'SELESAI').length;
+        });
+      }
+    }
+  } catch (e) {
+    debugPrint("Error fetching dashboard data: $e");
   }
+}
 
   @override
   Widget build(BuildContext context) {

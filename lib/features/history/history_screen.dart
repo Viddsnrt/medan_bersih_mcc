@@ -62,7 +62,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Future<void> _fetchData() async {
     setState(() => _isLoading = true);
     try {
-      final response = await http.get(Uri.parse('http://$ipAddress:5000/api/laporan/user/2')); 
+      final response = await http.get(Uri.parse('http://$ipAddress:5000/api/laporan/user/7')); 
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);

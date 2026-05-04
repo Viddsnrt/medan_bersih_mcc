@@ -21,7 +21,10 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
 
   bool _isLoading = false;
-  bool _isPasswordVisible = false; // 🔥 Variabel baru untuk toggle view password
+  bool _isPasswordVisible = false; // 🔥 Variabel toggle view password
+
+  // 💡 CATATAN: Pastikan IP Address ini sesuai dengan laptopmu saat ini ya
+  final String ipAddress = '10.61.166.195';
 
   Future<void> _login() async {
     setState(() {
@@ -29,7 +32,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      var url = Uri.parse('http://10.61.166.195:5000/api/auth/login');
+      var url = Uri.parse('http://$ipAddress:5000/api/auth/login');
 
       var response = await http.post(
         url,
@@ -81,7 +84,10 @@ class _LoginScreenState extends State<LoginScreen> {
         await prefs.setString('user_name', nama);
         await prefs.setString('user_email', emailAsli);
         await prefs.setString('user_phone', telepon);
-
+        
+        // 🔥 INI DIA KUNCI UTAMANYA: Simpan ID User agar laporan tidak error lagi!
+        await prefs.setString('userId', userId);
+        await prefs.setString('user_role', role); // Simpan role untuk jaga-jaga
 
         if (mounted) {
           if (role == 'WARGA' || role == 'MASYARAKAT') {
@@ -253,7 +259,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 8),
                 TextField(
                   controller: _passwordController,
-                  obscureText: !_isPasswordVisible, // 🔥 Menggunakan state visibility
+                  obscureText: !_isPasswordVisible, 
                   style: const TextStyle(fontWeight: FontWeight.w500),
                   decoration: InputDecoration(
                     hintText: 'Masukkan password Anda',
@@ -284,25 +290,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     contentPadding: const EdgeInsets.symmetric(vertical: 18),
                   ),
                 ),
-                
-                // Lupa Password (Opsional - bisa dikembangkan nanti)
-                // Align(
-                //   alignment: Alignment.centerRight,
-                //   child: TextButton(
-                //     onPressed: () {
-                //       // Navigasi ke lupa password
-                //     },
-                //     style: TextButton.styleFrom(
-                //       foregroundColor: Colors.green.shade700,
-                //       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                //     ),
-                //     child: const Text(
-                //       // 'Lupa Password?',
-                //       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                //     ),
-                //   ),
-                // ),
-                // const SizedBox(height: 16),
+                const SizedBox(height: 32),
 
                 // 🚀 BUTTON LOGIN
                 Container(
