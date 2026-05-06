@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:geolocator/geolocator.dart'; // 🔥 IMPORT GEOLOCATOR DI SINI
+import 'package:geolocator/geolocator.dart'; 
 
-import 'driver_map_screen.dart'; 
+import 'driver_map_screen.dart'; // Sesuaikan import Peta Supir kamu
 
 class OperatorDashboardTab extends StatefulWidget {
   final String driverId;
@@ -18,9 +18,8 @@ class _OperatorDashboardTabState extends State<OperatorDashboardTab> {
   List<dynamic> _tasks = [];
   bool _isLoading = true;
   String _driverName = "Supir Toba";
-  final String ipAddress = '10.61.166.195';
+  final String ipAddress = '10.72.28.195'; // Ganti jika IP berubah
   
-  // 🔥 STATE UNTUK MENYIMPAN LOKASI SUPIR SAAT INI
   Position? _currentPosition;
 
   @override
@@ -28,78 +27,36 @@ class _OperatorDashboardTabState extends State<OperatorDashboardTab> {
     super.initState();
     _loadDriverName();
     _fetchMyTasks();
-    _getCurrentLocation(); // 🔥 Panggil fungsi minta izin GPS saat halaman dibuka
+    _getCurrentLocation(); 
   }
 
-  // ========================================================
-  // 🔥 FUNGSI SAKTI UNTUK MINTA IZIN & AMBIL LOKASI SUPIR
-  // ========================================================
   Future<void> _getCurrentLocation() async {
-    bool serviceEnabled;
-    LocationPermission permission;
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return;
 
-    // 1. Cek apakah GPS HP menyala
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      debugPrint('Layanan GPS dinonaktifkan oleh pengguna.');
-      return;
-    }
-
-    // 2. Cek izin aplikasi
-    permission = await Geolocator.checkPermission();
+    LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
-      // Munculkan pop-up minta izin
       permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        debugPrint('Izin lokasi ditolak oleh supir.');
-        return;
-      }
+      if (permission == LocationPermission.denied) return;
     }
+    if (permission == LocationPermission.deniedForever) return;
 
-    if (permission == LocationPermission.deniedForever) {
-      debugPrint('Izin lokasi ditolak permanen.');
-      return;
-    }
-
-    // 3. Ambil koordinat GPS supir yang super akurat
-    Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high);
-        
-    if (mounted) {
-      setState(() {
-        _currentPosition = position;
-      });
-      debugPrint("Lokasi Supir Didapat: ${position.latitude}, ${position.longitude}");
-    }
+    Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+    if (mounted) setState(() => _currentPosition = position);
   }
 
-  // 🔥 FUNGSI MENGHITUNG JARAK DARI SUPIR KE SAMPAH
   String _calculateDistance(double targetLat, double targetLng) {
-    if (_currentPosition == null) {
-      return "Mencari lokasi...";
-    }
-    
+    if (_currentPosition == null) return "Mencari lokasi...";
     double distanceInMeters = Geolocator.distanceBetween(
-      _currentPosition!.latitude,
-      _currentPosition!.longitude,
-      targetLat,
-      targetLng,
+      _currentPosition!.latitude, _currentPosition!.longitude, targetLat, targetLng,
     );
-
-    if (distanceInMeters > 1000) {
-      return "${(distanceInMeters / 1000).toStringAsFixed(1)} km dari Anda";
-    }
+    if (distanceInMeters > 1000) return "${(distanceInMeters / 1000).toStringAsFixed(1)} km dari Anda";
     return "${distanceInMeters.toStringAsFixed(0)} meter dari Anda";
   }
-  // ========================================================
 
   Future<void> _loadDriverName() async {
     final prefs = await SharedPreferences.getInstance();
-    if (mounted) {
-      setState(() {
-        _driverName = prefs.getString('user_name') ?? "Supir Toba";
-      });
-    }
+    if (mounted) setState(() => _driverName = prefs.getString('user_name') ?? "Supir Toba");
   }
 
   Future<void> _fetchMyTasks() async {
@@ -108,26 +65,23 @@ class _OperatorDashboardTabState extends State<OperatorDashboardTab> {
       final response = await http.get(Uri.parse('http://$ipAddress:5000/api/driver/${widget.driverId}/tasks'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (mounted) {
-          setState(() {
-            _tasks = data['data'] ?? [];
-          });
-        }
+        if (mounted) setState(() => _tasks = data['data'] ?? []);
       }
     } catch (e) {
       debugPrint("Error fetching tasks: $e");
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // 🔥 FILTER: HANYA TAMPILKAN TUGAS YANG BELUM SELESAI
+    final activeTasks = _tasks.where((t) => t['status'] != 'SELESAI').toList();
+
     return RefreshIndicator(
       onRefresh: () async {
-        await _getCurrentLocation(); // Refresh lokasi juga kalau ditarik
+        await _getCurrentLocation(); 
         await _fetchMyTasks();
       },
       color: Colors.green.shade700,
@@ -136,7 +90,6 @@ class _OperatorDashboardTabState extends State<OperatorDashboardTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // HEADER HIJAU
             Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(24, 60, 24, 40),
@@ -161,21 +114,15 @@ class _OperatorDashboardTabState extends State<OperatorDashboardTab> {
                       ),
                       Container(
                         decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), shape: BoxShape.circle),
-                        child: IconButton(
-                          icon: const Icon(Icons.notifications_active_rounded, color: Colors.white),
-                          onPressed: () {},
-                        ),
+                        child: IconButton(icon: const Icon(Icons.notifications_active_rounded, color: Colors.white), onPressed: () {}),
                       )
                     ],
                   ),
                   const SizedBox(height: 32),
-                  
-                  // CARD STATISTIK TUGAS
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
+                      color: Colors.white, borderRadius: BorderRadius.circular(24),
                       boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 15, offset: const Offset(0, 5))],
                     ),
                     child: Row(
@@ -190,13 +137,12 @@ class _OperatorDashboardTabState extends State<OperatorDashboardTab> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Total Rute & Tugas', style: TextStyle(color: Colors.grey.shade500, fontSize: 12, fontWeight: FontWeight.w800)),
+                              Text('Tugas Aktif Saat Ini', style: TextStyle(color: Colors.grey.shade500, fontSize: 12, fontWeight: FontWeight.w800)),
                               const SizedBox(height: 4),
                               Row(
-                                crossAxisAlignment: CrossAxisAlignment.baseline,
-                                textBaseline: TextBaseline.alphabetic,
+                                crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic,
                                 children: [
-                                  Text('${_tasks.length}', style: TextStyle(color: Colors.green.shade800, fontSize: 32, fontWeight: FontWeight.w900)),
+                                  Text('${activeTasks.length}', style: TextStyle(color: Colors.green.shade800, fontSize: 32, fontWeight: FontWeight.w900)),
                                   const SizedBox(width: 6),
                                   const Text('Lokasi', style: TextStyle(color: Colors.black87, fontSize: 14, fontWeight: FontWeight.bold)),
                                 ],
@@ -210,24 +156,19 @@ class _OperatorDashboardTabState extends State<OperatorDashboardTab> {
                 ],
               ),
             ),
-
             const Padding(
               padding: EdgeInsets.fromLTRB(24, 32, 24, 16),
               child: Text("Daftar Penugasan Anda", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.black87)),
             ),
-
             _isLoading 
               ? Padding(padding: const EdgeInsets.all(40), child: Center(child: CircularProgressIndicator(color: Colors.green.shade700)))
-              : _tasks.isEmpty 
+              : activeTasks.isEmpty 
                 ? _buildEmptyState()
                 : ListView.builder(
-                    shrinkWrap: true, 
-                    physics: const NeverScrollableScrollPhysics(),
+                    shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    itemCount: _tasks.length,
-                    itemBuilder: (context, index) {
-                      return _buildTaskCard(_tasks[index]);
-                    },
+                    itemCount: activeTasks.length, // 🔥 Pakai activeTasks
+                    itemBuilder: (context, index) => _buildTaskCard(activeTasks[index]),
                   ),
             const SizedBox(height: 40), 
           ],
@@ -243,12 +184,11 @@ class _OperatorDashboardTabState extends State<OperatorDashboardTab> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(color: Colors.green.shade50, shape: BoxShape.circle),
+            padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: Colors.green.shade50, shape: BoxShape.circle),
             child: Icon(Icons.task_alt_rounded, size: 60, color: Colors.green.shade400),
           ),
           const SizedBox(height: 24),
-          const Text("Tidak Ada Tugas", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.black87)),
+          const Text("Tidak Ada Tugas Aktif", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.black87)),
           const SizedBox(height: 8),
           Text("Semua tugas hari ini sudah selesai atau admin belum memberikan tugas baru.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade500, height: 1.5, fontSize: 14)),
         ],
@@ -269,20 +209,15 @@ class _OperatorDashboardTabState extends State<OperatorDashboardTab> {
     String statusStr = task['status'] ?? 'DITUGASKAN';
     if (statusStr == 'DITUGASKAN') statusColor = Colors.blue.shade600;
     if (statusStr == 'BEKERJA' || statusStr == 'DALAM_PERJALANAN') statusColor = Colors.amber.shade700;
-    if (statusStr == 'SELESAI') statusColor = Colors.green.shade600;
 
-    // Ambil Koordinat Target
     double lat = task['latitude'] != null ? double.tryParse(task['latitude'].toString()) ?? 2.3333 : 2.3333;
     double lng = task['longitude'] != null ? double.tryParse(task['longitude'].toString()) ?? 99.0667 : 99.0667;
-    
-    // Hitung Jarak Asli
     String distanceStr = _calculateDistance(lat, lng);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        color: Colors.white, borderRadius: BorderRadius.circular(24),
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 8))],
       ),
@@ -336,7 +271,6 @@ class _OperatorDashboardTabState extends State<OperatorDashboardTab> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      // 🔥 INDIKATOR JARAK REAL-TIME DITAMPILKAN DI SINI
                       Row(
                         children: [
                           Icon(Icons.directions_car_rounded, size: 14, color: Colors.blue.shade400),
@@ -352,8 +286,7 @@ class _OperatorDashboardTabState extends State<OperatorDashboardTab> {
             if (task['notes'] != null && task['notes'].toString().isNotEmpty) ...[
               const SizedBox(height: 20),
               Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
+                width: double.infinity, padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(color: Colors.orange.shade50, border: Border.all(color: Colors.orange.shade100), borderRadius: BorderRadius.circular(16)),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -373,15 +306,16 @@ class _OperatorDashboardTabState extends State<OperatorDashboardTab> {
             ],
             const SizedBox(height: 24),
             SizedBox(
-              width: double.infinity,
-              height: 54,
+              width: double.infinity, height: 54,
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(backgroundColor: themeColor, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-                onPressed: () {
-                  Navigator.push(
+                onPressed: () async {
+                  // 🔥 TUNGGU HASIL KEMBALIAN DARI PETA
+                  final result = await Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) => DriverMapScreen(
+                        taskId: task['id'].toString(), // 🔥 WAJIB KIRIM ID TUGAS KE PETA
                         destinationLat: lat,
                         destinationLng: lng,
                         destinationName: task['location'] ?? 'Lokasi Tujuan',
@@ -389,6 +323,11 @@ class _OperatorDashboardTabState extends State<OperatorDashboardTab> {
                       ),
                     ),
                   );
+                  
+                  // 🔥 JIKA PETA MEMBERI KABAR "TRUE" (TUGAS SELESAI), REFRESH LIST!
+                  if (result == true) {
+                    _fetchMyTasks();
+                  }
                 },
                 icon: const Icon(Icons.navigation_rounded, color: Colors.white),
                 label: const Text('MULAI TUGAS & NAVIGASI', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.white, letterSpacing: 0.5)),

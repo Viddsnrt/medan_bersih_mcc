@@ -19,7 +19,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   bool _isLoading = true;
   
   IO.Socket? socket; 
-  final String ipAddress = '10.61.166.195';
+  final String ipAddress = '10.72.28.195';
 
   @override
   void initState() {
@@ -62,7 +62,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Future<void> _fetchData() async {
     setState(() => _isLoading = true);
     try {
-      final response = await http.get(Uri.parse('http://$ipAddress:5000/api/laporan/user/7')); 
+      final response = await http.get(Uri.parse('http://$ipAddress:5000/api/laporan/user/80')); 
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);

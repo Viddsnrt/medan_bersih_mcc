@@ -3,9 +3,12 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'dart:async';
-import 'package:socket_io_client/socket_io_client.dart' as IO; // 🔥 IMPORT SOCKET IO
+import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:http/http.dart' as http; // 🔥 WAJIB IMPORT INI
+import 'dart:convert'; // 🔥 WAJIB IMPORT INI
 
 class DriverMapScreen extends StatefulWidget {
+  final String taskId; // 🔥 INI DIA YANG BIKIN ERROR TADI, SEKARANG SUDAH ADA!
   final double destinationLat;
   final double destinationLng;
   final String destinationName;
@@ -13,6 +16,7 @@ class DriverMapScreen extends StatefulWidget {
 
   const DriverMapScreen({
     super.key,
+    required this.taskId, // 🔥 WAJIB DITAMBAHKAN DI SINI
     required this.destinationLat,
     required this.destinationLng,
     required this.destinationName,
@@ -35,7 +39,7 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
 
   // 🔥 Socket IO Config
   IO.Socket? socket; 
-  final String ipAddress = '10.61.166.195'; // Pastikan IP ini sama dengan Backend kamu
+  final String ipAddress = '10.72.28.195'; // Pastikan IP ini sama dengan Backend kamu
 
   @override
   void initState() {
@@ -164,7 +168,7 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
                 userAgentPackageName: 'com.example.toba_bersih',
               ),
               
-              // Lingkaran Radius Keamanan di sekitar target (Opsional, agar supir tahu batasnya)
+              // Lingkaran Radius Keamanan di sekitar target
               CircleLayer(
                 circles: [
                   CircleMarker(
@@ -294,7 +298,7 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
                   ),
                   const SizedBox(height: 24),
                   
-                  // 🔥 TOMBOL ANTI-NIPU (TERKUNCI JIKA JAUH)
+                  // 🔥 TOMBOL ANTI-NIPU & TEMBAK API
                   SizedBox(
                     width: double.infinity,
                     height: 54,
@@ -305,11 +309,44 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
                         elevation: 0,
                       ),
                       onPressed: _isWithinRadius 
-                        ? () {
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Tugas Berhasil Diselesaikan!'), backgroundColor: Colors.green),
+                        ? () async {
+                            // Tampilkan Loading Dialog
+                            showDialog(
+                              context: context,
+                              barrierDismissible: false,
+                              builder: (context) => const Center(child: CircularProgressIndicator(color: Colors.green)),
                             );
+
+                            try {
+                              // 🔥 TEMBAK API BACKEND UNTUK UBAH STATUS JADI SELESAI
+                              final response = await http.patch(
+                                Uri.parse('http://$ipAddress:5000/api/penugasan/${widget.taskId}/status'),
+                                headers: {'Content-Type': 'application/json'},
+                                body: jsonEncode({'status': 'SELESAI'}),
+                              );
+
+                              // Tutup loading dialog
+                              if (!context.mounted) return;
+                              Navigator.pop(context); 
+
+                              if (response.statusCode == 200) {
+                                // 🔥 POP DENGAN NILAI 'TRUE' AGAR DASHBOARD TAHU DAN REFRESH
+                                Navigator.pop(context, true); 
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Tugas Berhasil Diselesaikan!'), backgroundColor: Colors.green),
+                                );
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Gagal menyelesaikan tugas: ${response.body}')),
+                                );
+                              }
+                            } catch (e) {
+                              if (!context.mounted) return;
+                              Navigator.pop(context); // Tutup loading jika error
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Error jaringan: $e'), backgroundColor: Colors.red),
+                              );
+                            }
                           }
                         : () {
                             ScaffoldMessenger.of(context).showSnackBar(

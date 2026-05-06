@@ -3,10 +3,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
-// 🔥 IMPORT HALAMAN YANG DIBUTUHKAN (Sesuaikan path-nya jika berbeda)
 import 'package:toba_bersih/auth/login_screen.dart'; 
 import 'package:toba_bersih/features/profile/privacy_policy_screen.dart'; 
 import 'package:toba_bersih/features/profile/help_center_screen.dart';
+// Sesuaikan import di bawah ini jika DriverHistoryScreen ada di file terpisah. 
+// Jika di file yang sama, tidak perlu import.
 
 class OperatorProfileTab extends StatefulWidget {
   final String driverId;
@@ -19,7 +20,7 @@ class OperatorProfileTab extends StatefulWidget {
 class _OperatorProfileTabState extends State<OperatorProfileTab> {
   String _driverName = "Supir Toba";
   List<dynamic> _tasks = []; 
-  final String ipAddress = '10.61.166.195';
+  final String ipAddress = '10.72.28.195'; // Ganti jika IP berubah
 
   @override
   void initState() {
@@ -30,11 +31,7 @@ class _OperatorProfileTabState extends State<OperatorProfileTab> {
 
   Future<void> _loadDriverProfile() async {
     final prefs = await SharedPreferences.getInstance();
-    if (mounted) {
-      setState(() {
-        _driverName = prefs.getString('user_name') ?? "Supir Toba";
-      });
-    }
+    if (mounted) setState(() => _driverName = prefs.getString('user_name') ?? "Supir Toba");
   }
 
   Future<void> _fetchTaskStats() async {
@@ -42,11 +39,7 @@ class _OperatorProfileTabState extends State<OperatorProfileTab> {
       final response = await http.get(Uri.parse('http://$ipAddress:5000/api/driver/${widget.driverId}/tasks'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (mounted) {
-          setState(() {
-            _tasks = data['data'] ?? [];
-          });
-        }
+        if (mounted) setState(() => _tasks = data['data'] ?? []);
       }
     } catch (e) {
       debugPrint("Stat Error: $e");
@@ -99,112 +92,105 @@ class _OperatorProfileTabState extends State<OperatorProfileTab> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      child: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(24, 60, 24, 40),
-            decoration: BoxDecoration(
-              color: Colors.blueGrey.shade800, 
-              borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(40), bottomRight: Radius.circular(40)),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 5))],
-            ),
-            child: Column(
-              children: [
-                Stack(
-                  alignment: Alignment.bottomRight,
-                  children: [
-                    Container(
-                      height: 100,
-                      width: 100,
-                      decoration: BoxDecoration(
-                        color: Colors.blueGrey.shade100,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 4),
-                      ),
-                      child: Center(
-                        child: Text(
-                          _driverName.isNotEmpty ? _driverName.substring(0, 1).toUpperCase() : "S", 
-                          style: TextStyle(fontSize: 40, fontWeight: FontWeight.w900, color: Colors.blueGrey.shade800),
+    return RefreshIndicator(
+      onRefresh: _fetchTaskStats,
+      color: Colors.blueGrey.shade800,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(24, 60, 24, 40),
+              decoration: BoxDecoration(
+                color: Colors.blueGrey.shade800, 
+                borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(40), bottomRight: Radius.circular(40)),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 5))],
+              ),
+              child: Column(
+                children: [
+                  Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      Container(
+                        height: 100, width: 100,
+                        decoration: BoxDecoration(
+                          color: Colors.blueGrey.shade100, shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 4),
+                        ),
+                        child: Center(
+                          child: Text(
+                            _driverName.isNotEmpty ? _driverName.substring(0, 1).toUpperCase() : "S", 
+                            style: TextStyle(fontSize: 40, fontWeight: FontWeight.w900, color: Colors.blueGrey.shade800),
+                          ),
                         ),
                       ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(color: Colors.green.shade500, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
-                      child: const Icon(Icons.verified_user_rounded, size: 16, color: Colors.white),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Text(_driverName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
-                  child: Text('Driver ID: ${widget.driverId}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1)),
-                )
-              ],
-            ),
-          ),
-          
-          Transform.translate(
-            offset: const Offset(0, -25),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Row(
-                children: [
-                  Expanded(child: _buildDriverStatCard(Icons.task_alt_rounded, 'Diselesaikan', '${_tasks.where((t) => t['status'] == 'SELESAI').length}', Colors.green)),
-                  const SizedBox(width: 12),
-                  Expanded(child: _buildDriverStatCard(Icons.route_rounded, 'Sisa Rute', '${_tasks.where((t) => t['status'] != 'SELESAI').length}', Colors.orange)),
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(color: Colors.green.shade500, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
+                        child: const Icon(Icons.verified_user_rounded, size: 16, color: Colors.white),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(_driverName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
+                    child: Text('Driver ID: ${widget.driverId}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                  )
                 ],
               ),
             ),
-          ),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Operasional & Kendaraan', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.grey.shade500, letterSpacing: 1)),
-                const SizedBox(height: 12),
-                
-                // 🔥 TOMBOL RIWAYAT TUGAS
-                _buildProfileMenu(icon: Icons.history_rounded, title: 'Riwayat Tugas Selesai', color: Colors.blueGrey, onTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => DriverHistoryScreen(completedTasks: _tasks.where((t) => t['status'] == 'SELESAI').toList())));
-                }),
-                
-                // 🔥 TOMBOL LAPOR KENDALA
-                _buildProfileMenu(icon: Icons.build_circle_rounded, title: 'Lapor Kendala Truk', color: Colors.amber.shade800, onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Fitur Laporan Kendala Truk segera hadir!'), backgroundColor: Colors.amber),
-                  );
-                }),
-                
-                const SizedBox(height: 24),
-                Text('Informasi Akun', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.grey.shade500, letterSpacing: 1)),
-                const SizedBox(height: 12),
-                
-                // 🔥 TOMBOL KEBIJAKAN PRIVASI
-                _buildProfileMenu(icon: Icons.shield_outlined, title: 'Kebijakan Privasi', color: Colors.purple, onTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const PrivacyPolicyScreen()));
-                }),
-                
-                // 🔥 TOMBOL PUSAT BANTUAN
-                _buildProfileMenu(icon: Icons.help_outline_rounded, title: 'Pusat Bantuan', color: Colors.teal, onTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const HelpCenterScreen()));
-                }),
-                
-                const SizedBox(height: 32),
-                _buildProfileMenu(icon: Icons.power_settings_new_rounded, title: 'Akhiri Sesi Kerja', color: Colors.red, isLogout: true, onTap: _logout),
-                const SizedBox(height: 40),
-              ],
+            
+            Transform.translate(
+              offset: const Offset(0, -25),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Row(
+                  children: [
+                    Expanded(child: _buildDriverStatCard(Icons.task_alt_rounded, 'Diselesaikan', '${_tasks.where((t) => t['status'] == 'SELESAI').length}', Colors.green)),
+                    const SizedBox(width: 12),
+                    Expanded(child: _buildDriverStatCard(Icons.route_rounded, 'Sisa Rute', '${_tasks.where((t) => t['status'] != 'SELESAI').length}', Colors.orange)),
+                  ],
+                ),
+              ),
             ),
-          ),
-        ],
+
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Operasional & Kendaraan', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.grey.shade500, letterSpacing: 1)),
+                  const SizedBox(height: 12),
+                  _buildProfileMenu(icon: Icons.history_rounded, title: 'Riwayat Tugas Selesai', color: Colors.blueGrey, onTap: () {
+                    // 🔥 BERIKAN HANYA DATA TUGAS YANG SUDAH SELESAI
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => DriverHistoryScreen(
+                      completedTasks: _tasks.where((t) => t['status'] == 'SELESAI').toList()
+                    )));
+                  }),
+                  _buildProfileMenu(icon: Icons.build_circle_rounded, title: 'Lapor Kendala Truk', color: Colors.amber.shade800, onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fitur Laporan Kendala Truk segera hadir!'), backgroundColor: Colors.amber));
+                  }),
+                  const SizedBox(height: 24),
+                  Text('Informasi Akun', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.grey.shade500, letterSpacing: 1)),
+                  const SizedBox(height: 12),
+                  _buildProfileMenu(icon: Icons.shield_outlined, title: 'Kebijakan Privasi', color: Colors.purple, onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const PrivacyPolicyScreen()));
+                  }),
+                  _buildProfileMenu(icon: Icons.help_outline_rounded, title: 'Pusat Bantuan', color: Colors.teal, onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const HelpCenterScreen()));
+                  }),
+                  const SizedBox(height: 32),
+                  _buildProfileMenu(icon: Icons.power_settings_new_rounded, title: 'Akhiri Sesi Kerja', color: Colors.red, isLogout: true, onTap: _logout),
+                  const SizedBox(height: 40),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -213,8 +199,7 @@ class _OperatorProfileTabState extends State<OperatorProfileTab> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        color: Colors.white, borderRadius: BorderRadius.circular(20),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))],
       ),
       child: Column(
@@ -232,8 +217,7 @@ class _OperatorProfileTabState extends State<OperatorProfileTab> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white, borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))]
       ),
@@ -252,7 +236,7 @@ class _OperatorProfileTabState extends State<OperatorProfileTab> {
 }
 
 // ==============================================================
-// 🔥 HALAMAN RIWAYAT TUGAS SUPIR (Ditambahkan agar tidak error)
+// 🔥 HALAMAN RIWAYAT TUGAS SUPIR 
 // ==============================================================
 class DriverHistoryScreen extends StatelessWidget {
   final List<dynamic> completedTasks;
