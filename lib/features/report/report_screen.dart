@@ -32,7 +32,7 @@ class _ReportScreenState extends State<ReportScreen> with WidgetsBindingObserver
   bool _isSubmitting = false; 
 
   // 💡 CATATAN: Pastikan IP ini sesuai dengan IPv4 laptopmu saat ini
-  final String ipAddress = '10.72.28.195';
+  final String ipAddress = '10.39.18.144';
 
   @override
   void initState() {
@@ -178,49 +178,101 @@ class _ReportScreenState extends State<ReportScreen> with WidgetsBindingObserver
   }
 
   Future<void> _submitReport() async {
-    if (_imageFile == null || _titleController.text.isEmpty || _currentPosition == null) {
-      _showCustomSnackBar('Mohon lengkapi foto, judul, dan pastikan GPS menyala!', isError: true);
+    if (_imageFile == null ||
+        _titleController.text.isEmpty ||
+        _currentPosition == null) {
+      _showCustomSnackBar(
+        'Mohon lengkapi foto, judul, dan pastikan GPS menyala!',
+        isError: true,
+      );
       return;
     }
 
-    // 🔥 AMBIL ID USER DARI MEMORI HP
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    final String? savedUserId = prefs.getString('userId');
+    // 🔥 VALIDASI UKURAN FILE
+    final fileSize = await _imageFile!.length();
+    final fileSizeMB = fileSize / (1024 * 1024);
+
+    if (fileSizeMB > 5) {
+      _showCustomSnackBar(
+        'Ukuran file maksimal 5MB',
+        isError: true,
+      );
+      return;
+    }
+
+    final SharedPreferences prefs =
+        await SharedPreferences.getInstance();
+
+    final String? savedUserId =
+        prefs.getString('userId');
 
     if (savedUserId == null) {
-      _showCustomSnackBar('Sesi login tidak valid. Silakan logout dan login kembali.', isError: true);
+      _showCustomSnackBar(
+        'Sesi login tidak valid. Silakan login kembali.',
+        isError: true,
+      );
       return;
     }
 
     setState(() {
-      _isSubmitting = true; 
+      _isSubmitting = true;
     });
 
     try {
-      var uri = Uri.parse('http://$ipAddress:5000/api/laporan/create');
-      var request = http.MultipartRequest('POST', uri);
+      var uri = Uri.parse(
+        'http://$ipAddress:5000/api/laporan/create',
+      );
 
-      request.fields['description'] = "[${_titleController.text}] - ${_descController.text}";
-      request.fields['jenisSampah'] = _selectedCategory;
-      request.fields['latitude'] = _currentPosition!.latitude.toString();
-      request.fields['longitude'] = _currentPosition!.longitude.toString();
-      
-      // 🔥 GUNAKAN ID OTOMATIS
-      request.fields['userId'] = savedUserId; 
+      var request =
+          http.MultipartRequest('POST', uri);
 
-      var multipartFile = await http.MultipartFile.fromPath('photo', _imageFile!.path);
+      request.fields['description'] =
+          "[${_titleController.text}] - ${_descController.text}";
+
+      request.fields['jenisSampah'] =
+          _selectedCategory;
+
+      request.fields['latitude'] =
+          _currentPosition!.latitude.toString();
+
+      request.fields['longitude'] =
+          _currentPosition!.longitude.toString();
+
+      request.fields['userId'] =
+          savedUserId;
+
+      var multipartFile =
+          await http.MultipartFile.fromPath(
+        'photo',
+        _imageFile!.path,
+      );
+
       request.files.add(multipartFile);
 
-      var streamedResponse = await request.send().timeout(const Duration(seconds: 15));
-      var response = await http.Response.fromStream(streamedResponse);
-      var data = jsonDecode(response.body);
+      var streamedResponse =
+          await request.send().timeout(
+        const Duration(seconds: 15),
+      );
 
-      if (response.statusCode == 201 && data['success'] == true) {
+      var response =
+          await http.Response.fromStream(
+        streamedResponse,
+      );
+
+      Map<String, dynamic> data = {};
+
+      try {
+        data = jsonDecode(response.body);
+      } catch (_) {}
+
+      if (response.statusCode == 201 &&
+          data['success'] == true) {
         if (mounted) {
           _resetForm();
+
           showDialog(
             context: context,
-            barrierDismissible: false, 
+            barrierDismissible: false,
             builder: (BuildContext context) {
               return const SuccessScreen();
             },
@@ -228,17 +280,26 @@ class _ReportScreenState extends State<ReportScreen> with WidgetsBindingObserver
         }
       } else {
         if (mounted) {
-          _showCustomSnackBar(data['message'] ?? 'Gagal mengirim laporan', isError: true);
+          _showCustomSnackBar(
+            data['message'] ??
+                'Gagal mengirim laporan',
+            isError: true,
+          );
         }
       }
     } catch (e) {
       if (mounted) {
-        _showCustomSnackBar('Terjadi kesalahan jaringan atau waktu habis.', isError: true);
+        _showCustomSnackBar(
+          'Terjadi kesalahan jaringan',
+          isError: true,
+        );
       }
+
+      print('UPLOAD ERROR: $e');
     } finally {
       if (mounted) {
         setState(() {
-          _isSubmitting = false; 
+          _isSubmitting = false;
         });
       }
     }
