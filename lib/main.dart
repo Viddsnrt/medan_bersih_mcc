@@ -3,16 +3,40 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 🔥 IMPORT FIREBASE UNTUK NOTIFIKASI
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'firebase_options.dart';
+
 // Sesuaikan nama 'toba_bersih' dengan nama project di pubspec.yaml kamu
 import 'package:toba_bersih/features/report/report_screen.dart';
 import 'package:toba_bersih/features/history/history_screen.dart';
 import 'package:toba_bersih/features/profile/profile_screen.dart';
 import 'package:toba_bersih/features/onboarding/splash_screen.dart';
-
-// 🔥 IMPORT FILE PETA YANG BARU DIBUAT (Sesuaikan path-nya)
 import 'package:toba_bersih/features/report/live_tracking_screen.dart';
 
-void main() {
+// ==========================================
+// 🔥 FUNGSI PENANGKAP NOTIFIKASI BACKGROUND (Aplikasi Ditutup)
+// Wajib diletakkan di luar class!
+// ==========================================
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  debugPrint("Menerima notifikasi di Background: ${message.messageId}");
+}
+
+void main() async {
+  // 🔥 Wajib dipanggil sebelum Firebase menyala
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // 🔥 Inisialisasi Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // 🔥 Daftarkan penangkap notifikasi saat aplikasi ditutup
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
   runApp(const TobaBersihApp());
 }
 
@@ -63,6 +87,51 @@ class _MainScreenState extends State<MainScreen> {
     const HistoryScreen(),
     const ProfileScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _setupForegroundNotifications();
+  }
+
+  // 🔥 FUNGSI PENANGKAP NOTIFIKASI FOREGROUND (Aplikasi Dibuka)
+  void _setupForegroundNotifications() {
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      debugPrint('Notifikasi Foreground Masuk: ${message.notification?.title}');
+      
+      if (message.notification != null && mounted) {
+        // Tampilkan pemberitahuan langsung di dalam aplikasi
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  message.notification!.title ?? 'Notifikasi Baru', 
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)
+                ),
+                Text(
+                  message.notification!.body ?? '', 
+                  style: const TextStyle(fontSize: 12)
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFF2D7B3F),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'TUTUP',
+              textColor: Colors.white70,
+              onPressed: () {},
+            ),
+          ),
+        );
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -143,7 +212,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _laporanDiproses = 0;
   int _laporanSelesai = 0;
 
-  final String ipAddress = '10.72.28.195';
+  final String ipAddress = '10.152.199.195';
 
   @override
   void initState() {
@@ -151,20 +220,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _fetchDashboardData();
   }
 
-  // Jangan lupa import di atas: import 'package:shared_preferences/shared_preferences.dart';
-
   Future<void> _fetchDashboardData() async {
     try {
-      // 🔥 1. AMBIL ID DARI MEMORI HP
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       final String? savedUserId = prefs.getString('userId');
 
       if (savedUserId == null) {
         debugPrint("Waduh, User ID belum tersimpan! Harus login ulang.");
-        return; // Stop fungsi kalau ID gak ada
+        return; 
       }
 
-      // 🔥 2. GUNAKAN ID OTOMATIS TERSEBUT KE DALAM URL
       final response = await http.get(
         Uri.parse('http://$ipAddress:5000/api/laporan/user/$savedUserId'),
       );
@@ -233,12 +298,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   color: Colors.white.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(10),
                 ),
+                // 🔥 PERBAIKAN: Fungsi onPressed sekarang akan membuka NotificationScreen
                 child: IconButton(
                   icon: const Icon(
                     Icons.notifications_none_rounded,
                     color: Colors.white,
                   ),
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const NotificationScreen(),
+                      ),
+                    );
+                  },
                   tooltip: 'Notifikasi',
                 ),
               ),
@@ -301,10 +374,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 TextButton(
                   onPressed: () {},
-                  child: Text(
+                  child: const Text(
                     'Lihat Semua',
                     style: TextStyle(
-                      color: const Color(0xFF2D7B3F),
+                      color: Color(0xFF2D7B3F),
                       fontWeight: FontWeight.w800,
                       fontSize: 12,
                     ),
@@ -342,15 +415,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
+              const Row(
                 children: [
                   Icon(
                     Icons.location_on_rounded,
-                    color: const Color(0xFF2D7B3F),
+                    color: Color(0xFF2D7B3F),
                     size: 22,
                   ),
-                  const SizedBox(width: 10),
-                  const Text(
+                  SizedBox(width: 10),
+                  Text(
                     'Jadwal Area Rumahmu',
                     style: TextStyle(
                       fontWeight: FontWeight.w800,
@@ -369,9 +442,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   color: const Color(0xFF2D7B3F).withOpacity(0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text(
+                child: const Text(
                   'Aktif',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Color(0xFF2D7B3F),
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
@@ -463,8 +536,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [const Color(0xFF2D7B3F), const Color(0xFF38A050)],
+        gradient: const LinearGradient(
+          colors: [Color(0xFF2D7B3F), Color(0xFF38A050)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -660,18 +733,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (report['createdAt'] != null) {
           DateTime dt = DateTime.parse(report['createdAt']).toLocal();
           List<String> months = [
-            'Jan',
-            'Feb',
-            'Mar',
-            'Apr',
-            'Mei',
-            'Jun',
-            'Jul',
-            'Agu',
-            'Sep',
-            'Okt',
-            'Nov',
-            'Des',
+            'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+            'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
           ];
           formattedDate =
               '${dt.day.toString().padLeft(2, '0')} ${months[dt.month - 1]} ${dt.year}';
@@ -762,6 +825,168 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+// ==========================================
+// 3. NOTIFICATION SCREEN (DENGAN DATA ASLI SERVER)
+// ==========================================
+class NotificationScreen extends StatefulWidget {
+  const NotificationScreen({super.key});
+
+  @override
+  State<NotificationScreen> createState() => _NotificationScreenState();
+}
+
+class _NotificationScreenState extends State<NotificationScreen> {
+  List<dynamic> _notifications = [];
+  bool _isLoading = true;
+
+  // Sesuaikan dengan IP komputermu
+  final String ipAddress = '10.152.199.195';
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchNotifications();
+  }
+
+  Future<void> _fetchNotifications() async {
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String? userId = prefs.getString('userId');
+
+      if (userId == null) return;
+
+      // 🔥 Panggil API yang baru kita buat di backend
+      final response = await http.get(
+        Uri.parse('http://$ipAddress:5000/api/penugasan/notifikasi/user/$userId'), 
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (mounted) {
+          setState(() {
+            _notifications = data['data'];
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Gagal mengambil notifikasi: $e");
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFB),
+      appBar: AppBar(
+        title: const Text(
+          'Pemberitahuan', 
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)
+        ),
+        backgroundColor: const Color(0xFF2D7B3F),
+        iconTheme: const IconThemeData(color: Colors.white),
+        elevation: 0,
+      ),
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator(color: Color(0xFF2D7B3F)))
+        : _notifications.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.notifications_off_rounded, size: 60, color: Colors.grey.shade300),
+                  const SizedBox(height: 16),
+                  Text("Belum ada notifikasi", style: TextStyle(color: Colors.grey.shade500, fontSize: 16, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            )
+          : ListView.builder(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.all(20),
+              itemCount: _notifications.length,
+              itemBuilder: (context, index) {
+                final notif = _notifications[index];
+                
+                // Format waktu sederhana
+                String formattedDate = '';
+                if (notif['createdAt'] != null) {
+                  DateTime dt = DateTime.parse(notif['createdAt']).toLocal();
+                  formattedDate = '${dt.day}/${dt.month}/${dt.year} ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
+                }
+
+                return _buildNotificationCard(
+                  notif['title'] ?? 'Pemberitahuan',
+                  notif['message'] ?? '-',
+                  formattedDate,
+                  Icons.info_rounded, // Icon default
+                  const Color(0xFF2D7B3F),
+                  notif['isRead'] ?? false,
+                );
+              },
+            ),
+    );
+  }
+
+  Widget _buildNotificationCard(String title, String desc, String time, IconData icon, Color color, bool isRead) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isRead ? Colors.white : color.withOpacity(0.05), // Sedikit berwarna jika belum dibaca
+        borderRadius: BorderRadius.circular(16),
+        border: isRead ? null : Border.all(color: color.withOpacity(0.3), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Colors.black87),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  desc,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600, height: 1.4, fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  time,
+                  style: TextStyle(fontSize: 10, color: Colors.grey.shade400, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

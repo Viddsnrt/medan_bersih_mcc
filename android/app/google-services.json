@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "27772756950",
+    "project_id": "toba-bersih",
+    "storage_bucket": "toba-bersih.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:27772756950:android:d6a11460afa95773d33a77",
+        "android_client_info": {
+          "package_name": "com.example.toba_bersih"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDDK2ixuqri5IBVEMJXfM9SUfyPVg6b3yk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

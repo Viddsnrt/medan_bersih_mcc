@@ -39,7 +39,7 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
 
   // 🔥 Socket IO Config
   IO.Socket? socket; 
-  final String ipAddress = '10.72.28.195'; // Pastikan IP ini sama dengan Backend kamu
+  final String ipAddress = '10.152.199.195'; // Pastikan IP ini sama dengan Backend kamu
 
   @override
   void initState() {

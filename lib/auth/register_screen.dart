@@ -33,7 +33,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      var url = Uri.parse('http://10.72.28.195:5000/api/auth/register');
+      var url = Uri.parse('http://10.152.199.195:5000/api/auth/register');
        // Pastikan IP ini benar
       var response = await http.post(
         url,

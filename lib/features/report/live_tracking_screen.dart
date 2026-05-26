@@ -25,7 +25,7 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
   final MapController _mapController = MapController();
   
   IO.Socket? socket; 
-  final String ipAddress = '10.61.166.195'; // Sesuaikan dengan IP Servermu
+  final String ipAddress = '10.152.199.195'; // Sesuaikan dengan IP Servermu
 
   @override
   void initState() {

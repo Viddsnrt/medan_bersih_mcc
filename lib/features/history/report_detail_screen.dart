@@ -16,7 +16,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   
   IO.Socket? socket; 
   // 🔥 PENTING: Pastikan IP Address ini sama dengan yang ada di HistoryScreen!
-  final String ipAddress = '192.168.100.17';
+  final String ipAddress = '10.152.199.195';
 
   @override
   void initState() {

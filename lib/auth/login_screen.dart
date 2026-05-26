@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:toba_bersih/features/operator/operator_home_screen.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart'; 
+import 'package:firebase_messaging/firebase_messaging.dart'; // 🔥 IMPORT FIREBASE MESSAGING
 
 // Sesuaikan dengan struktur folder proyekmu
 import 'package:toba_bersih/main.dart'; 
@@ -21,15 +22,34 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
 
   bool _isLoading = false;
-  bool _isPasswordVisible = false; // 🔥 Variabel toggle view password
+  bool _isPasswordVisible = false; 
 
   // 💡 CATATAN: Pastikan IP Address ini sesuai dengan laptopmu saat ini ya
-  final String ipAddress = '10.72.28.195';
+  final String ipAddress = '10.152.199.195';
 
   Future<void> _login() async {
     setState(() {
       _isLoading = true;
     });
+
+    // 🔥 1. MINTA IZIN & AMBIL FCM TOKEN SEBELUM LOGIN
+    String? fcmToken;
+    try {
+      FirebaseMessaging messaging = FirebaseMessaging.instance;
+      
+      // Minta izin (Wajib untuk Android 13+ dan iOS)
+      await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      // Ambil token unik HP ini
+      fcmToken = await messaging.getToken();
+      debugPrint("📱 FCM Token HP Ini: $fcmToken");
+    } catch (e) {
+      debugPrint("⚠️ Gagal mengambil FCM Token (Abaikan jika di emulator Web tanpa config): $e");
+    }
 
     try {
       var url = Uri.parse('http://$ipAddress:5000/api/auth/login');
@@ -42,6 +62,7 @@ class _LoginScreenState extends State<LoginScreen> {
         body: jsonEncode({
           'email': _emailController.text.trim(),
           'password': _passwordController.text.trim(),
+          'fcmToken': fcmToken, // 🔥 2. KIRIM TOKEN KE BACKEND
         }),
       );
 
@@ -85,9 +106,9 @@ class _LoginScreenState extends State<LoginScreen> {
         await prefs.setString('user_email', emailAsli);
         await prefs.setString('user_phone', telepon);
         
-        // 🔥 INI DIA KUNCI UTAMANYA: Simpan ID User agar laporan tidak error lagi!
+        // Simpan ID User agar laporan tidak error
         await prefs.setString('userId', userId);
-        await prefs.setString('user_role', role); // Simpan role untuk jaga-jaga
+        await prefs.setString('user_role', role); 
 
         if (mounted) {
           if (role == 'WARGA' || role == 'MASYARAKAT') {
@@ -267,7 +288,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     filled: true,
                     fillColor: Colors.grey.shade50,
                     prefixIcon: Icon(Icons.lock_outline_rounded, color: Colors.green.shade600),
-                    // 🔥 TOMBOL TOGGLE MATA PASSWORD
                     suffixIcon: IconButton(
                       icon: Icon(
                         _isPasswordVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
