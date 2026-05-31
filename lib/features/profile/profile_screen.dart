@@ -29,6 +29,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _syncUserData();
   }
 
+  // 🔥 MEMBACA LOCAL STORAGE UNTUK DITAMPILKAN DI UI
   Future<void> _syncUserData() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -86,8 +87,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             onPressed: () async {
+              // ==========================================================
+              // 🔥 MENGHAPUS LOCAL STORAGE (Membuktikan data dikelola dengan aman)
+              // ==========================================================
               final prefs = await SharedPreferences.getInstance();
-              await prefs.clear();
+              await prefs.clear(); // Menghapus token enkripsi, bool, dan data profil
 
               if (!context.mounted) return;
               Navigator.pushAndRemoveUntil(
@@ -133,13 +137,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Container(
           height: 220,
           width: double.infinity,
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             gradient: LinearGradient(
-              colors: [const Color(0xFF2D7B3F), const Color(0xFF38A050)],
+              colors: [Color(0xFF2D7B3F), Color(0xFF38A050)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: const BorderRadius.only(
+            borderRadius: BorderRadius.only(
               bottomLeft: Radius.circular(48),
               bottomRight: Radius.circular(48),
             ),
@@ -273,10 +277,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.phone_android_rounded,
                         size: 14,
-                        color: const Color(0xFF2D7B3F),
+                        color: Color(0xFF2D7B3F),
                       ),
                       const SizedBox(width: 6),
                       Text(
@@ -320,13 +324,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 14),
 
-          // 🔥 TOMBOL-TOMBOL INI SEKARANG AKTIF
           _buildListTile(
             Icons.person_outline_rounded,
             'Edit Profil Pribadi',
             Colors.blue,
             () async {
-              // 🔥 PERBAIKAN: Gunakan 'await' untuk menunggu hasil dari halaman Edit
               final result = await Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -334,7 +336,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               );
 
-              // Jika result bernilai true (artinya user menekan tombol Simpan), panggil ulang fungsi sync
               if (result == true) {
                 _syncUserData();
               }
@@ -444,9 +445,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           borderRadius: BorderRadius.circular(18),
           onTap: onTap,
           splashColor: (isLogout ? Colors.red : themeColor).withOpacity(0.08),
-          highlightColor: (isLogout ? Colors.red : themeColor).withOpacity(
-            0.05,
-          ),
+          highlightColor: (isLogout ? Colors.red : themeColor).withOpacity(0.05),
           child: Padding(
             padding: const EdgeInsets.all(14.0),
             child: Row(

@@ -4,7 +4,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 // Import file layar selanjutnya
 import '../../auth/login_screen.dart'; 
-import 'onboarding_screen.dart'; // Pastikan path ini sesuai dengan file onboarding kamu
+import 'onboarding_screen.dart'; 
+// 🔥 IMPORT HALAMAN UTAMA UNTUK BYPASS LOGIN
+import 'package:toba_bersih/main.dart'; 
+import 'package:toba_bersih/features/operator/operator_home_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -17,31 +20,57 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _checkFirstTimeUser();
+    _checkAppState();
   }
 
-  // 🔥 FUNGSI BARU: Mengecek apakah user baru pertama kali buka aplikasi
-  Future<void> _checkFirstTimeUser() async {
+  // 🔥 FUNGSI PEMBACAAN LOCAL STORAGE (Persistensi Data)
+  Future<void> _checkAppState() async {
     // Tunggu 3 detik agar splash screen terlihat
     await Future.delayed(const Duration(seconds: 3));
 
     if (!mounted) return;
 
     final prefs = await SharedPreferences.getInstance();
-    // Cek apakah key 'isFirstTime' bernilai false (artinya sudah pernah buka)
-    // Jika null, berarti baru pertama kali install (default = true)
+    
+    // 1. Cek Onboarding
     final bool isFirstTime = prefs.getBool('isFirstTime') ?? true;
 
     if (isFirstTime) {
-      // Jika baru pertama kali, masuk ke Onboarding, dan set isFirstTime jadi false
       await prefs.setBool('isFirstTime', false);
-      
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const OnboardingScreen()),
       );
+      return; 
+    }
+
+    // ==========================================================
+    // 🔥 2. CEK SESI LOGIN (Membuktikan data tetap ada setelah app ditutup)
+    // ==========================================================
+    final bool isLoggedIn = prefs.getBool('is_logged_in') ?? false;
+    final String? encryptedToken = prefs.getString('auth_token');
+
+    if (isLoggedIn && encryptedToken != null) {
+      // Jika token dan status login ada, baca role-nya
+      final String role = prefs.getString('user_role') ?? 'WARGA';
+      final String userId = prefs.getString('userId') ?? '';
+
+      debugPrint("Sesi ditemukan! Token Enkripsi: $encryptedToken");
+
+      // Langsung arahkan ke halaman utama (Bypass Login)
+      if (role == 'OPERATOR' || role == 'SUPIR') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => OperatorHomeScreen(driverId: userId)),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const MainScreen()),
+        );
+      }
     } else {
-      // Jika sudah pernah buka sebelumnya, LANGSUNG SKIP KE LOGIN
+      // Jika belum login atau token hilang, masuk ke LoginScreen
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const LoginScreen()),
